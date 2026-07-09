@@ -301,6 +301,7 @@
     <button id="btnEyad" class="eyad">أنا إياد</button>
     <button id="btnHala" class="hala">أنا حلا</button>
   </div>
+  <button id="notifBtn" style="margin-top:10px;background:var(--bg-card);border:1px solid #4a2f52;color:var(--muted);padding:6px 16px;border-radius:14px;font-family:'Tajawal',sans-serif;font-size:12px;cursor:pointer;">🔔 فعّل الإشعارات</button>
 </header>
 
 <main id="chat">
@@ -370,6 +371,8 @@ function setWho(who){
   btnEyad.classList.toggle('active', who==='eyad');
   btnHala.classList.toggle('active', who==='hala');
   document.getElementById('modalTarget').textContent = who==='eyad' ? 'حلا' : 'إياد';
+  const nb = document.getElementById('notifBtn');
+  if(nb) nb.textContent = localStorage.getItem('eh_notif_' + who) === '1' ? '🔔 الإشعارات مفعّلة ✓' : '🔔 فعّل الإشعارات';
   lastCount = -1;
   loadMessages();
 }
@@ -569,6 +572,52 @@ document.getElementById('confirmModal').onclick = ()=>{
 setWho(ME);
 loadMessages();
 poller = setInterval(loadMessages, 1500);
+
+/* ===== الإشعارات (Push Notifications) ===== */
+const VAPID_PUBLIC_KEY = 'BFjNF8HRXnpw4m5RBru6srtVahFtd80QSqG9ydMxguyHWmVutzPeVnE37hQorhyH6E8MCyYs9lqMC1Tmt9olUaU';
+
+function urlBase64ToUint8Array(base64String) {
+  const padding = '='.repeat((4 - base64String.length % 4) % 4);
+  const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/');
+  const rawData = atob(base64);
+  const outputArray = new Uint8Array(rawData.length);
+  for (let i = 0; i < rawData.length; ++i) outputArray[i] = rawData.charCodeAt(i);
+  return outputArray;
+}
+
+async function enableNotifications(){
+  if(!('serviceWorker' in navigator) || !('PushManager' in window)){
+    alert('المتصفح ما بيدعم الإشعارات 😔');
+    return;
+  }
+  try{
+    const reg = await navigator.serviceWorker.register('/sw.js');
+    const perm = await Notification.requestPermission();
+    if(perm !== 'granted'){
+      alert('لازم توافق على الإذن حتى توصلك الإشعارات');
+      return;
+    }
+    const sub = await reg.pushManager.subscribe({
+      userVisibleOnly: true,
+      applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC_KEY)
+    });
+    await fetch(`${FN}/subscribe`, {
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ who: ME, subscription: sub })
+    });
+    document.getElementById('notifBtn').textContent = '🔔 الإشعارات مفعّلة ✓';
+    localStorage.setItem('eh_notif_' + ME, '1');
+  } catch(e){
+    alert('صار خطأ بتفعيل الإشعارات، جرب كمان مرة');
+  }
+}
+
+document.getElementById('notifBtn').onclick = enableNotifications;
+
+if(localStorage.getItem('eh_notif_' + ME) === '1'){
+  document.getElementById('notifBtn').textContent = '🔔 الإشعارات مفعّلة ✓';
+}
 </script>
 </body>
 </html>
