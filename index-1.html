@@ -1,0 +1,556 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>إياد ✶ حلا</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Aref+Ruqaa:wght@400;700&family=Tajawal:wght@300;400;500;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg-deep:#1E1224;
+    --bg-card:#2B1832;
+    --bg-card-2:#33203B;
+    --rose:#E3AFAE;
+    --gold:#CDA35B;
+    --cream:#F7ECE4;
+    --muted:#B79FB0;
+    --thread:#8A5C6B;
+  }
+  *{box-sizing:border-box;}
+  html,body{height:100%;margin:0;}
+  body{
+    background:
+      radial-gradient(ellipse at top, #3A2140 0%, var(--bg-deep) 55%),
+      var(--bg-deep);
+    color:var(--cream);
+    font-family:'Tajawal',sans-serif;
+    display:flex;
+    flex-direction:column;
+    min-height:100vh;
+    overflow-x:hidden;
+  }
+
+  /* ===== Header ===== */
+  header{
+    padding:22px 16px 18px;
+    text-align:center;
+    position:relative;
+    flex-shrink:0;
+  }
+  .names{
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    gap:14px;
+    font-family:'Aref Ruqaa',serif;
+  }
+  .name{
+    font-size:28px;
+    font-weight:700;
+    color:var(--cream);
+    letter-spacing:1px;
+  }
+  .name.eyad{color:var(--gold);}
+  .name.hala{color:var(--rose);}
+  .thread-icon{
+    width:34px;height:14px;position:relative;
+    display:flex;align-items:center;justify-content:center;
+  }
+  .thread-icon svg{width:100%;height:100%;}
+  .thread-icon path{
+    stroke:var(--thread);
+    stroke-width:1.5;
+    fill:none;
+    stroke-dasharray:4 3;
+    animation:threadmove 3s linear infinite;
+  }
+  @keyframes threadmove{to{stroke-dashoffset:-14;}}
+  .sub{
+    margin-top:6px;
+    font-size:12px;
+    color:var(--muted);
+    letter-spacing:2px;
+  }
+  .whoami{
+    margin-top:14px;
+    display:inline-flex;
+    background:var(--bg-card);
+    border:1px solid #4a2f52;
+    border-radius:20px;
+    padding:4px;
+    gap:2px;
+  }
+  .whoami button{
+    border:none;
+    background:transparent;
+    color:var(--muted);
+    padding:7px 18px;
+    border-radius:16px;
+    font-family:'Tajawal',sans-serif;
+    font-size:13px;
+    font-weight:700;
+    cursor:pointer;
+    transition:.25s;
+  }
+  .whoami button.active.eyad{background:var(--gold);color:#221327;}
+  .whoami button.active.hala{background:var(--rose);color:#221327;}
+
+  /* ===== Chat area ===== */
+  main{
+    flex:1;
+    overflow-y:auto;
+    padding:10px 14px 20px;
+    display:flex;
+    flex-direction:column;
+    gap:10px;
+    max-width:640px;
+    width:100%;
+    margin:0 auto;
+  }
+  .empty{
+    margin:auto;
+    text-align:center;
+    color:var(--muted);
+    font-size:14px;
+    line-height:1.9;
+  }
+  .empty .big{
+    font-family:'Aref Ruqaa',serif;
+    font-size:22px;
+    color:var(--rose);
+    display:block;
+    margin-bottom:6px;
+  }
+  .bubble-row{display:flex;width:100%;}
+  .bubble-row.me{justify-content:flex-start;}
+  .bubble-row.them{justify-content:flex-end;}
+  .bubble{
+    max-width:75%;
+    padding:10px 14px;
+    border-radius:18px;
+    font-size:15px;
+    line-height:1.6;
+    position:relative;
+    animation:pop .25s ease;
+  }
+  @keyframes pop{from{transform:scale(.92);opacity:0;}to{transform:scale(1);opacity:1;}}
+  .bubble-row.me .bubble{
+    background:linear-gradient(135deg,#3a2440,#33203B);
+    border:1px solid var(--gold);
+    border-bottom-left-radius:4px;
+  }
+  .bubble-row.them .bubble{
+    background:linear-gradient(135deg,#3a2440,#33203B);
+    border:1px solid var(--rose);
+    border-bottom-right-radius:4px;
+  }
+  .bubble img{
+    max-width:100%;
+    border-radius:12px;
+    display:block;
+    margin-top:4px;
+  }
+  .bubble .cap{margin-top:6px;}
+  .meta{
+    font-size:10px;
+    color:var(--muted);
+    margin-top:4px;
+    text-align:left;
+  }
+  .sender-tag{
+    font-size:11px;
+    font-weight:700;
+    margin-bottom:3px;
+  }
+  .bubble-row.me .sender-tag{color:var(--gold);}
+  .bubble-row.them .sender-tag{color:var(--rose);}
+
+  /* ===== Composer ===== */
+  footer{
+    flex-shrink:0;
+    padding:12px 14px calc(14px + env(safe-area-inset-bottom));
+    background:linear-gradient(to top, var(--bg-deep) 60%, transparent);
+    max-width:640px;
+    width:100%;
+    margin:0 auto;
+  }
+  .composer{
+    background:var(--bg-card);
+    border:1px solid #4a2f52;
+    border-radius:24px;
+    padding:6px 6px 6px 14px;
+    display:flex;
+    align-items:center;
+    gap:8px;
+  }
+  .composer input[type=text]{
+    flex:1;
+    background:transparent;
+    border:none;
+    outline:none;
+    color:var(--cream);
+    font-family:'Tajawal',sans-serif;
+    font-size:15px;
+    padding:8px 0;
+  }
+  .composer input::placeholder{color:var(--muted);}
+  .icon-btn{
+    width:38px;height:38px;
+    border-radius:50%;
+    border:none;
+    background:var(--bg-card-2);
+    color:var(--cream);
+    display:flex;align-items:center;justify-content:center;
+    cursor:pointer;
+    flex-shrink:0;
+    transition:.2s;
+    font-size:17px;
+  }
+  .icon-btn:hover{filter:brightness(1.2);}
+  .send-btn{
+    background:linear-gradient(135deg,var(--gold),#b8863f);
+    color:#221327;
+  }
+  .status{
+    text-align:center;
+    font-size:11px;
+    color:var(--muted);
+    margin-top:8px;
+  }
+  .dot{
+    display:inline-block;width:6px;height:6px;border-radius:50%;
+    background:#6fbf73;margin-left:5px;
+  }
+  .dot.off{background:#c0555a;}
+
+  /* ===== Sticker editor modal ===== */
+  .modal-bg{
+    position:fixed;inset:0;background:rgba(15,8,18,.75);
+    display:none;align-items:flex-end;justify-content:center;
+    z-index:50;backdrop-filter:blur(3px);
+  }
+  .modal-bg.open{display:flex;}
+  .modal{
+    background:var(--bg-card);
+    width:100%;max-width:640px;
+    border-radius:22px 22px 0 0;
+    padding:18px 16px calc(18px + env(safe-area-inset-bottom));
+    border:1px solid #4a2f52;
+    border-bottom:none;
+    animation:slideup .25s ease;
+  }
+  @keyframes slideup{from{transform:translateY(20px);opacity:0;}to{transform:translateY(0);opacity:1;}}
+  .modal h3{
+    font-family:'Aref Ruqaa',serif;
+    color:var(--rose);
+    margin:0 0 12px;
+    font-size:19px;
+    text-align:center;
+  }
+  .tabs{display:flex;gap:6px;margin-bottom:12px;background:var(--bg-card-2);padding:4px;border-radius:14px;}
+  .tabs button{
+    flex:1;background:transparent;border:none;color:var(--muted);
+    padding:8px;border-radius:10px;font-family:'Tajawal',sans-serif;font-size:13px;font-weight:700;cursor:pointer;
+  }
+  .tabs button.active{background:var(--gold);color:#221327;}
+  #drawWrap{display:none;}
+  #drawWrap.active{display:block;}
+  #uploadWrap{display:none;}
+  #uploadWrap.active{display:block;}
+  canvas{
+    width:100%;aspect-ratio:1/1;
+    background:#fff;
+    border-radius:14px;
+    touch-action:none;
+    display:block;
+  }
+  .draw-tools{display:flex;gap:8px;margin-top:10px;align-items:center;flex-wrap:wrap;}
+  .swatch{
+    width:26px;height:26px;border-radius:50%;border:2px solid transparent;cursor:pointer;
+  }
+  .swatch.active{border-color:var(--cream);}
+  .drop{
+    border:2px dashed #4a2f52;border-radius:14px;padding:30px 10px;text-align:center;
+    color:var(--muted);cursor:pointer;font-size:13px;
+  }
+  .drop img{max-width:100%;max-height:200px;border-radius:10px;margin-top:10px;}
+  .cap-input{
+    width:100%;margin-top:12px;background:var(--bg-card-2);border:1px solid #4a2f52;
+    border-radius:12px;padding:10px 12px;color:var(--cream);font-family:'Tajawal',sans-serif;font-size:14px;
+  }
+  .modal-actions{display:flex;gap:8px;margin-top:14px;}
+  .btn{
+    flex:1;padding:12px;border-radius:14px;border:none;font-family:'Tajawal',sans-serif;
+    font-weight:700;font-size:14px;cursor:pointer;
+  }
+  .btn.cancel{background:var(--bg-card-2);color:var(--muted);}
+  .btn.confirm{background:linear-gradient(135deg,var(--rose),#b98486);color:#221327;}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="names">
+    <span class="name eyad">إياد</span>
+    <span class="thread-icon"><svg viewBox="0 0 34 14"><path d="M0 7 Q 8 0, 17 7 T 34 7"/></svg></span>
+    <span class="name hala">حلا</span>
+  </div>
+  <div class="sub">خيط بيوصل بين غزة ونابلس</div>
+  <div class="whoami">
+    <button id="btnEyad" class="eyad">أنا إياد</button>
+    <button id="btnHala" class="hala">أنا حلا</button>
+  </div>
+</header>
+
+<main id="chat">
+  <div class="empty" id="emptyState">
+    <span class="big">لسا ما في رسايل</span>
+    ابعتوا أول كلمة أو ستيكر ونبدأ الحكاية 🤍
+  </div>
+</main>
+
+<footer>
+  <div class="composer">
+    <button class="icon-btn" id="stickerBtn" title="ستيكر">🎨</button>
+    <input type="text" id="textInput" placeholder="اكتب شي حلو...">
+    <button class="icon-btn send-btn" id="sendBtn">↩</button>
+  </div>
+  <div class="status">متزامن مع تيليجرام <span class="dot" id="statusDot"></span></div>
+</footer>
+
+<div class="modal-bg" id="modalBg">
+  <div class="modal">
+    <h3>ستيكر لـ <span id="modalTarget">حلا</span> ✶</h3>
+    <div class="tabs">
+      <button id="tabDraw" class="active">ارسم</button>
+      <button id="tabUpload">ارفع صورة</button>
+    </div>
+    <div id="drawWrap" class="active">
+      <canvas id="canvas" width="500" height="500"></canvas>
+      <div class="draw-tools">
+        <span class="swatch active" style="background:#221327" data-c="#221327"></span>
+        <span class="swatch" style="background:#E3AFAE" data-c="#E3AFAE"></span>
+        <span class="swatch" style="background:#CDA35B" data-c="#CDA35B"></span>
+        <span class="swatch" style="background:#7F55A0" data-c="#7F55A0"></span>
+        <span class="swatch" style="background:#4E8C7A" data-c="#4E8C7A"></span>
+        <span class="swatch" style="background:#ffffff;border:1px solid #ccc" data-c="#ffffff"></span>
+        <button class="icon-btn" id="clearCanvas" style="margin-right:auto;">🗑</button>
+      </div>
+    </div>
+    <div id="uploadWrap">
+      <div class="drop" id="dropZone">اضغط لاختيار صورة من جهازك
+        <input type="file" id="fileInput" accept="image/*" style="display:none">
+        <div id="preview"></div>
+      </div>
+    </div>
+    <input type="text" class="cap-input" id="capInput" placeholder="اكتب تعليق مع الستيكر (اختياري)">
+    <div class="modal-actions">
+      <button class="btn cancel" id="cancelModal">إلغاء</button>
+      <button class="btn confirm" id="confirmModal">إرسال 🤍</button>
+    </div>
+  </div>
+</div>
+
+<script>
+const FN = '/.netlify/functions';
+let ME = localStorage.getItem('eh_who') || 'eyad';
+let lastCount = 0;
+let poller = null;
+
+const chatEl = document.getElementById('chat');
+const emptyState = document.getElementById('emptyState');
+const btnEyad = document.getElementById('btnEyad');
+const btnHala = document.getElementById('btnHala');
+const statusDot = document.getElementById('statusDot');
+
+function setWho(who){
+  ME = who;
+  localStorage.setItem('eh_who', who);
+  btnEyad.classList.toggle('active', who==='eyad');
+  btnHala.classList.toggle('active', who==='hala');
+  document.getElementById('modalTarget').textContent = who==='eyad' ? 'حلا' : 'إياد';
+  lastCount = -1;
+  loadMessages();
+}
+btnEyad.onclick = ()=>setWho('eyad');
+btnHala.onclick = ()=>setWho('hala');
+
+function fmtTime(ts){
+  const d = new Date(ts);
+  return d.toLocaleTimeString('ar', {hour:'2-digit', minute:'2-digit'});
+}
+
+function render(list){
+  if(!list.length){
+    chatEl.innerHTML = '';
+    chatEl.appendChild(emptyState);
+    return;
+  }
+  chatEl.innerHTML = '';
+  list.forEach(m=>{
+    const row = document.createElement('div');
+    row.className = 'bubble-row ' + (m.from === ME ? 'me' : 'them');
+    const bubble = document.createElement('div');
+    bubble.className = 'bubble';
+    const tag = document.createElement('div');
+    tag.className = 'sender-tag';
+    tag.textContent = m.from === 'eyad' ? 'إياد' : 'حلا';
+    bubble.appendChild(tag);
+    if(m.type === 'sticker' && m.image){
+      const img = document.createElement('img');
+      img.src = m.image;
+      bubble.appendChild(img);
+      if(m.text){
+        const cap = document.createElement('div');
+        cap.className = 'cap';
+        cap.textContent = m.text;
+        bubble.appendChild(cap);
+      }
+    } else {
+      const txt = document.createElement('div');
+      txt.textContent = m.text;
+      bubble.appendChild(txt);
+    }
+    const meta = document.createElement('div');
+    meta.className = 'meta';
+    meta.textContent = fmtTime(m.timestamp);
+    bubble.appendChild(meta);
+    row.appendChild(bubble);
+    chatEl.appendChild(row);
+  });
+  chatEl.scrollTop = chatEl.scrollHeight;
+}
+
+async function loadMessages(){
+  try{
+    const res = await fetch(`${FN}/messages`);
+    if(!res.ok) throw new Error('bad');
+    const list = await res.json();
+    statusDot.classList.remove('off');
+    if(list.length !== lastCount){
+      lastCount = list.length;
+      render(list);
+    }
+  }catch(e){
+    statusDot.classList.add('off');
+  }
+}
+
+async function sendMessage(payload){
+  const res = await fetch(`${FN}/send`, {
+    method:'POST',
+    headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({from: ME, ...payload})
+  });
+  if(res.ok){
+    lastCount = -1;
+    loadMessages();
+  } else {
+    alert('ما انبعتت الرسالة، جرب كمان مرة 🤍');
+  }
+}
+
+document.getElementById('sendBtn').onclick = ()=>{
+  const input = document.getElementById('textInput');
+  const text = input.value.trim();
+  if(!text) return;
+  input.value='';
+  sendMessage({text, type:'text'});
+};
+document.getElementById('textInput').addEventListener('keydown', e=>{
+  if(e.key === 'Enter') document.getElementById('sendBtn').click();
+});
+
+/* ===== Sticker modal ===== */
+const modalBg = document.getElementById('modalBg');
+const canvas = document.getElementById('canvas');
+const ctx = canvas.getContext('2d');
+let drawing=false, color='#221327';
+ctx.fillStyle='#fff'; ctx.fillRect(0,0,canvas.width,canvas.height);
+ctx.lineWidth=8; ctx.lineCap='round'; ctx.lineJoin='round';
+
+function getPos(e){
+  const r = canvas.getBoundingClientRect();
+  const cx = (e.touches ? e.touches[0].clientX : e.clientX) - r.left;
+  const cy = (e.touches ? e.touches[0].clientY : e.clientY) - r.top;
+  return {x: cx * canvas.width / r.width, y: cy * canvas.height / r.height};
+}
+function start(e){ drawing=true; const p=getPos(e); ctx.beginPath(); ctx.moveTo(p.x,p.y); e.preventDefault();}
+function move(e){ if(!drawing) return; const p=getPos(e); ctx.strokeStyle=color; ctx.lineTo(p.x,p.y); ctx.stroke(); e.preventDefault();}
+function end(){ drawing=false; }
+canvas.addEventListener('mousedown', start);
+canvas.addEventListener('mousemove', move);
+window.addEventListener('mouseup', end);
+canvas.addEventListener('touchstart', start);
+canvas.addEventListener('touchmove', move);
+canvas.addEventListener('touchend', end);
+
+document.querySelectorAll('.swatch').forEach(sw=>{
+  sw.onclick = ()=>{
+    document.querySelectorAll('.swatch').forEach(s=>s.classList.remove('active'));
+    sw.classList.add('active');
+    color = sw.dataset.c;
+  };
+});
+document.getElementById('clearCanvas').onclick = ()=>{
+  ctx.fillStyle='#fff'; ctx.fillRect(0,0,canvas.width,canvas.height);
+};
+
+const tabDraw = document.getElementById('tabDraw');
+const tabUpload = document.getElementById('tabUpload');
+const drawWrap = document.getElementById('drawWrap');
+const uploadWrap = document.getElementById('uploadWrap');
+tabDraw.onclick = ()=>{
+  tabDraw.classList.add('active'); tabUpload.classList.remove('active');
+  drawWrap.classList.add('active'); uploadWrap.classList.remove('active');
+};
+tabUpload.onclick = ()=>{
+  tabUpload.classList.add('active'); tabDraw.classList.remove('active');
+  uploadWrap.classList.add('active'); drawWrap.classList.remove('active');
+};
+
+let uploadedImage = null;
+const dropZone = document.getElementById('dropZone');
+const fileInput = document.getElementById('fileInput');
+dropZone.onclick = ()=>fileInput.click();
+fileInput.onchange = ()=>{
+  const file = fileInput.files[0];
+  if(!file) return;
+  const reader = new FileReader();
+  reader.onload = ()=>{
+    uploadedImage = reader.result;
+    document.getElementById('preview').innerHTML = `<img src="${uploadedImage}">`;
+  };
+  reader.readAsDataURL(file);
+};
+
+document.getElementById('stickerBtn').onclick = ()=>{
+  modalBg.classList.add('open');
+};
+document.getElementById('cancelModal').onclick = ()=>{
+  modalBg.classList.remove('open');
+};
+
+document.getElementById('confirmModal').onclick = ()=>{
+  const caption = document.getElementById('capInput').value.trim();
+  let dataUrl;
+  if(uploadWrap.classList.contains('active')){
+    if(!uploadedImage){ alert('اختار صورة الأول'); return; }
+    dataUrl = uploadedImage;
+  } else {
+    dataUrl = canvas.toDataURL('image/png');
+  }
+  sendMessage({text: caption, type:'sticker', image: dataUrl});
+  modalBg.classList.remove('open');
+  document.getElementById('capInput').value='';
+  uploadedImage=null;
+  document.getElementById('preview').innerHTML='';
+};
+
+setWho(ME);
+loadMessages();
+poller = setInterval(loadMessages, 4000);
+</script>
+</body>
+</html>
