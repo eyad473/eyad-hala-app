@@ -430,6 +430,7 @@ async function loadMessages(){
     statusDot.classList.remove('off');
     if(list.length !== lastCount){
       lastCount = list.length;
+      localMessages = list;
       render(list);
     }
   }catch(e){
@@ -437,17 +438,34 @@ async function loadMessages(){
   }
 }
 
+let localMessages = [];
+
 async function sendMessage(payload){
-  const res = await fetch(`${FN}/send`, {
-    method:'POST',
-    headers:{'Content-Type':'application/json'},
-    body: JSON.stringify({from: ME, ...payload})
-  });
-  if(res.ok){
+  // نعرض الرسالة فوراً بدون ما نستنى السيرفر (عرض تفاؤلي)
+  const optimistic = {
+    id: 'pending-' + Date.now(),
+    from: ME,
+    text: payload.text || '',
+    image: payload.type === 'sticker' ? payload.image : null,
+    type: payload.type || 'text',
+    timestamp: Date.now()
+  };
+  localMessages.push(optimistic);
+  render(localMessages);
+
+  try{
+    const res = await fetch(`${FN}/send`, {
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({from: ME, ...payload})
+    });
+    if(!res.ok) throw new Error('failed');
     lastCount = -1;
     loadMessages();
-  } else {
+  } catch(e){
     alert('ما انبعتت الرسالة، جرب كمان مرة 🤍');
+    localMessages = localMessages.filter(m => m.id !== optimistic.id);
+    render(localMessages);
   }
 }
 
@@ -550,7 +568,7 @@ document.getElementById('confirmModal').onclick = ()=>{
 
 setWho(ME);
 loadMessages();
-poller = setInterval(loadMessages, 4000);
+poller = setInterval(loadMessages, 1500);
 </script>
 </body>
 </html>
