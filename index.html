@@ -136,17 +136,18 @@
   }
   @keyframes pop{from{transform:scale(.92);opacity:0;}to{transform:scale(1);opacity:1;}}
   .bubble-row.me .bubble{
-    background:linear-gradient(135deg,#833AB4,#E1306C,#F77737);
+    background:#C13584;
     border:none;
     color:#fff;
-    border-bottom-left-radius:4px;
+    border-radius:20px;
   }
   .bubble-row.them .bubble{
-    background:#2E2233;
-    border:1px solid #4a2f52;
-    color:var(--cream);
-    border-bottom-right-radius:4px;
+    background:#262626;
+    border:none;
+    color:#fff;
+    border-radius:20px;
   }
+  .sender-tag{display:none;}
   .bubble img{
     max-width:100%;
     border-radius:12px;
@@ -289,8 +290,8 @@
   .bubble-row.them .quote-block{border-right-color:var(--rose);}
   .deleted-msg{font-style:italic;opacity:.6;font-size:13px;}
   .edited-tag{font-size:10px;opacity:.7;margin-right:4px;}
-    .seen-tag{font-size:10px;color:var(--muted);text-align:left;margin-top:2px;}
-  .media-bubble img, .media-bubble video{max-width:100%;border-radius:12px;display:block;}
+  .seen-tag{font-size:10px;color:var(--muted);text-align:left;margin-top:2px;}
+    .media-bubble img, .media-bubble video{max-width:100%;border-radius:12px;display:block;}
   .reply-preview{
     display:flex;align-items:center;justify-content:space-between;
     background:var(--bg-card);border:1px solid #4a2f52;border-radius:12px;
@@ -512,15 +513,25 @@ function showReactPopup(x, y, msg){
   ['❤️','😂','😮','😢','👍','🔥'].forEach(emoji=>{
     const span = document.createElement('span');
     span.textContent = emoji;
-    span.onclick = async ()=>{
+    span.onclick = async (ev)=>{
+      ev.stopPropagation();
       popup.remove();
-      await fetch(`${FN}/react`, {
-        method:'POST',
-        headers:{'Content-Type':'application/json'},
-        body: JSON.stringify({messageId: msg.id, emoji, from: ME})
-      });
-      lastCount = -1;
-      loadMessages();
+      try{
+        const res = await fetch(`${FN}/react`, {
+          method:'POST',
+          headers:{'Content-Type':'application/json'},
+          body: JSON.stringify({messageId: msg.id, emoji, from: ME})
+        });
+        if(!res.ok){
+          const errData = await res.json().catch(()=>({}));
+          alert('ما انضاف الرد: ' + (errData.error || res.status));
+          return;
+        }
+        lastCount = -1;
+        loadMessages();
+      }catch(e){
+        alert('صار خطأ بإضافة الرد: ' + e.message);
+      }
     };
     popup.appendChild(span);
   });
@@ -573,14 +584,14 @@ function showReactPopup(x, y, msg){
       popup.remove();
       document.removeEventListener('click', closeOnce);
     }, {once:true});
-  }, 50);
+    }, 50);
 }
 
 function render(list){
   if(!list.length){
     chatEl.innerHTML = '';
     chatEl.appendChild(emptyState);
-      return;
+    return;
   }
   chatEl.innerHTML = '';
 
@@ -866,12 +877,12 @@ window.addEventListener('mouseup', end);
 canvas.addEventListener('touchstart', start);
 canvas.addEventListener('touchmove', move);
 canvas.addEventListener('touchend', end);
-
+  
 document.querySelectorAll('.swatch').forEach(sw=>{
   sw.onclick = ()=>{
     document.querySelectorAll('.swatch').forEach(s=>s.classList.remove('active'));
     sw.classList.add('active');
-      color = sw.dataset.c;
+    color = sw.dataset.c;
   };
 });
 document.getElementById('clearCanvas').onclick = ()=>{
