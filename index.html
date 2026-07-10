@@ -291,10 +291,10 @@
   .deleted-msg{font-style:italic;opacity:.6;font-size:13px;}
   .edited-tag{font-size:10px;opacity:.7;margin-right:4px;}
   .seen-tag{font-size:10px;color:var(--muted);text-align:left;margin-top:2px;}
-    .media-bubble img, .media-bubble video{max-width:100%;border-radius:12px;display:block;}
+  .media-bubble img, .media-bubble video{max-width:100%;border-radius:12px;display:block;}
   .reply-preview{
     display:flex;align-items:center;justify-content:space-between;
-    background:var(--bg-card);border:1px solid #4a2f52;border-radius:12px;
+        background:var(--bg-card);border:1px solid #4a2f52;border-radius:12px;
     padding:8px 12px;margin-bottom:8px;font-size:13px;
   }
   .reply-preview .txt{opacity:.85;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
@@ -584,13 +584,13 @@ function showReactPopup(x, y, msg){
       popup.remove();
       document.removeEventListener('click', closeOnce);
     }, {once:true});
-    }, 50);
+  }, 50);
 }
 
 function render(list){
   if(!list.length){
     chatEl.innerHTML = '';
-    chatEl.appendChild(emptyState);
+      chatEl.appendChild(emptyState);
     return;
   }
   chatEl.innerHTML = '';
@@ -780,6 +780,7 @@ async function loadMessages(){
       lastCount = list.length;
       localMessages = list;
       render(list);
+      try{ localStorage.setItem('eh_cache_messages', snap); }catch(e){}
     }
   }catch(e){
     statusDot.classList.add('off');
@@ -877,15 +878,14 @@ window.addEventListener('mouseup', end);
 canvas.addEventListener('touchstart', start);
 canvas.addEventListener('touchmove', move);
 canvas.addEventListener('touchend', end);
-  
+
 document.querySelectorAll('.swatch').forEach(sw=>{
   sw.onclick = ()=>{
     document.querySelectorAll('.swatch').forEach(s=>s.classList.remove('active'));
     sw.classList.add('active');
     color = sw.dataset.c;
   };
-});
-document.getElementById('clearCanvas').onclick = ()=>{
+});document.getElementById('clearCanvas').onclick = ()=>{
   ctx.fillStyle='#fff'; ctx.fillRect(0,0,canvas.width,canvas.height);
 };
 
@@ -955,6 +955,18 @@ document.getElementById('confirmModal').onclick = ()=>{
   document.getElementById('preview').innerHTML='';
   clearReply();
 };
+
+// نعرض آخر نسخة محفوظة محلياً فوراً (بدون ما نستنى السيرفر)
+try{
+  const cached = localStorage.getItem('eh_cache_messages');
+  if(cached){
+    const cachedList = JSON.parse(cached);
+    localMessages = cachedList;
+    lastSnapshot = cached;
+    lastCount = cachedList.length;
+    render(cachedList);
+  }
+}catch(e){}
 
 setWho(ME);
 loadMessages();
@@ -1170,3 +1182,5 @@ micBtn.onclick = async ()=>{
 </script>
 </body>
 </html>
+
+  
