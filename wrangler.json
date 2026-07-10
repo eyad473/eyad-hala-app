@@ -1,0 +1,15 @@
+{
+  "name": "eyad-hala-app",
+  "compatibility_date": "2026-07-10",
+  "main": "worker.js",
+  "assets": {
+    "directory": "./",
+    "binding": "ASSETS"
+  },
+  "kv_namespaces": [
+    {
+      "binding": "EYAD_HALA_KV",
+      "id": "1793c8a02e484d04978e34cedb0ff1fe"
+    }
+  ]
+}
