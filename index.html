@@ -423,9 +423,9 @@ let poller = null;
 
 const chatEl = document.getElementById('chat');
 const emptyState = document.getElementById('emptyState');
-      const btnEyad = document.getElementById('btnEyad');
+const btnEyad = document.getElementById('btnEyad');
 const btnHala = document.getElementById('btnHala');
-const statusDot = document.getElementById('statusDot');
+  const statusDot = document.getElementById('statusDot');
 
 function setWho(who){
   ME = who;
@@ -550,13 +550,16 @@ function render(list){
   chatEl.scrollTop = chatEl.scrollHeight;
 }
 
+let lastSnapshot = '';
 async function loadMessages(){
   try{
     const res = await fetch(`${FN}/messages`);
     if(!res.ok) throw new Error('bad');
     const list = await res.json();
     statusDot.classList.remove('off');
-    if(list.length !== lastCount){
+    const snap = JSON.stringify(list);
+    if(snap !== lastSnapshot){
+      lastSnapshot = snap;
       lastCount = list.length;
       localMessages = list;
       render(list);
@@ -696,7 +699,7 @@ document.getElementById('confirmModal').onclick = ()=>{
 
 setWho(ME);
 loadMessages();
-poller = setInterval(loadMessages, 1500);
+poller = setInterval(loadMessages, 1000);
 
 /* ===== الإشعارات (Push Notifications) ===== */
 const VAPID_PUBLIC_KEY = 'BFjNF8HRXnpw4m5RBru6srtVahFtd80QSqG9ydMxguyHWmVutzPeVnE37hQorhyH6E8MCyYs9lqMC1Tmt9olUaU';
@@ -810,7 +813,7 @@ async function checkTyping(){
     }
   }catch(e){}
 }
-setInterval(checkTyping, 1200);
+setInterval(checkTyping, 900);
 
 /* ===== الرسائل الصوتية ===== */
 let mediaRecorder, audioChunks = [], isRecording = false;
@@ -849,4 +852,3 @@ micBtn.onclick = async ()=>{
 </script>
 </body>
 </html>
-
