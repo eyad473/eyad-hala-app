@@ -294,14 +294,14 @@
   .media-bubble img, .media-bubble video{max-width:100%;border-radius:12px;display:block;}
   .reply-preview{
     display:flex;align-items:center;justify-content:space-between;
-        background:var(--bg-card);border:1px solid #4a2f52;border-radius:12px;
+    background:var(--bg-card);border:1px solid #4a2f52;border-radius:12px;
     padding:8px 12px;margin-bottom:8px;font-size:13px;
   }
   .reply-preview .txt{opacity:.85;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
   .reply-preview button{background:none;border:none;color:var(--muted);font-size:16px;cursor:pointer;}
 
   .wave-row{
-    display:flex;align-items:center;justify-content:center;gap:4px;
+      display:flex;align-items:center;justify-content:center;gap:4px;
     padding:8px 0;
   }
   .wave-bar{
@@ -473,7 +473,7 @@
 </div>
 
 <script>
-const FN = '/.netlify/functions';
+const FN = '/api';
 let ME = localStorage.getItem('eh_who') || 'eyad';
 let lastCount = 0;
 let poller = null;
@@ -590,7 +590,7 @@ function showReactPopup(x, y, msg){
 function render(list){
   if(!list.length){
     chatEl.innerHTML = '';
-      chatEl.appendChild(emptyState);
+    chatEl.appendChild(emptyState);
     return;
   }
   chatEl.innerHTML = '';
@@ -604,7 +604,7 @@ function render(list){
     row.className = 'bubble-row ' + (m.from === ME ? 'me' : 'them');
     const bubble = document.createElement('div');
     bubble.className = 'bubble';
-    const tag = document.createElement('div');
+      const tag = document.createElement('div');
     tag.className = 'sender-tag';
     tag.textContent = m.from === 'eyad' ? 'إياد' : 'حلا';
     bubble.appendChild(tag);
@@ -749,15 +749,21 @@ function updateSeenTag(){
 }
 
 async function checkSeen(){
+  if(document.visibilityState !== 'visible') return;
   try{
     const res = await fetch(`${FN}/seen`);
     seenData = await res.json();
     updateSeenTag();
   }catch(e){}
 }
-setInterval(checkSeen, 1500);
+setInterval(checkSeen, 5000); // قراءة، رخيصة (100 ألف/يوم)
 
+let lastMarkSeen = 0;
 async function markSeen(){
+  const now = Date.now();
+  // كتابة نادرة قصداً: بحد أقصى مرة كل 25 ثانية (حماية لحد الكتابة اليومي على Cloudflare)
+  if(document.visibilityState !== 'visible' || now - lastMarkSeen < 25000) return;
+  lastMarkSeen = now;
   try{
     await fetch(`${FN}/seen`, {
       method:'POST',
@@ -766,9 +772,10 @@ async function markSeen(){
     });
   }catch(e){}
 }
-setInterval(markSeen, 2000);
+setInterval(markSeen, 25000);
 
 async function loadMessages(){
+  if(document.visibilityState !== 'visible') return;
   try{
     const res = await fetch(`${FN}/messages`);
     if(!res.ok) throw new Error('bad');
@@ -885,7 +892,8 @@ document.querySelectorAll('.swatch').forEach(sw=>{
     sw.classList.add('active');
     color = sw.dataset.c;
   };
-});document.getElementById('clearCanvas').onclick = ()=>{
+});
+document.getElementById('clearCanvas').onclick = ()=>{
   ctx.fillStyle='#fff'; ctx.fillRect(0,0,canvas.width,canvas.height);
 };
 
@@ -899,7 +907,7 @@ tabDraw.onclick = ()=>{
 };
 tabUpload.onclick = ()=>{
   tabUpload.classList.add('active'); tabDraw.classList.remove('active');
-  uploadWrap.classList.add('active'); drawWrap.classList.remove('active');
+    uploadWrap.classList.add('active'); drawWrap.classList.remove('active');
 };
 
 let uploadedImage = null;
@@ -970,7 +978,16 @@ try{
 
 setWho(ME);
 loadMessages();
-poller = setInterval(loadMessages, 1000);
+poller = setInterval(loadMessages, 2500);
+
+// لما المستخدم يرجع للتطبيق بعد ما كان مسكر/بالخلفية، نحدث فوراً
+document.addEventListener('visibilitychange', ()=>{
+  if(document.visibilityState === 'visible'){
+    loadMessages();
+    checkSeen();
+    markSeen();
+  }
+});
 
 /* ===== الإشعارات (Push Notifications) ===== */
 const VAPID_PUBLIC_KEY = 'BFjNF8HRXnpw4m5RBru6srtVahFtd80QSqG9ydMxguyHWmVutzPeVnE37hQorhyH6E8MCyYs9lqMC1Tmt9olUaU';
@@ -985,6 +1002,10 @@ function urlBase64ToUint8Array(base64String) {
 }
 
 async function enableNotifications(){
+  alert('الإشعارات لسا مش متوفرة على الاستضافة الجديدة، رح نضيفها قريباً 🔔');
+  return;
+}
+async function enableNotificationsOLD_UNUSED(){
   if(!('serviceWorker' in navigator) || !('PushManager' in window)){
     alert('المتصفح ما بيدعم الإشعارات 😔');
     return;
@@ -1062,9 +1083,11 @@ document.addEventListener('click', (e)=>{
 applyTheme(localStorage.getItem('eh_theme') || 'purple');
 
 /* ===== مؤشر الكتابة ===== */
-let typingTimeout;
+let lastTypingPing = 0;
 document.getElementById('textInput').addEventListener('input', ()=>{
-  clearTimeout(typingTimeout);
+  const now = Date.now();
+  if(now - lastTypingPing < 8000) return; // نبعت إشارة كتابة بحد أقصى كل 8 ثواني (حماية لحد الكتابة اليومي)
+  lastTypingPing = now;
   fetch(`${FN}/typing`, {
     method:'POST',
     headers:{'Content-Type':'application/json'},
@@ -1073,18 +1096,19 @@ document.getElementById('textInput').addEventListener('input', ()=>{
 });
 
 async function checkTyping(){
+  if(document.visibilityState !== 'visible') return;
   try{
     const res = await fetch(`${FN}/typing`);
     const status = await res.json();
     const row = document.getElementById('typingRow');
-    if(status && status.from && status.from !== ME && (Date.now() - status.ts) < 3000){
+    if(status && status.from && status.from !== ME && (Date.now() - status.ts) < 3500){
       row.textContent = (status.from === 'eyad' ? 'إياد' : 'حلا') + ' عم يكتب...';
     } else {
       row.textContent = '';
     }
   }catch(e){}
 }
-setInterval(checkTyping, 900);
+setInterval(checkTyping, 3000);
 
 /* ===== الرسائل الصوتية ===== */
 let mediaRecorder, audioChunks = [], isRecording = false, recStartTime, recTimerInt;
@@ -1182,5 +1206,3 @@ micBtn.onclick = async ()=>{
 </script>
 </body>
 </html>
-
-  
