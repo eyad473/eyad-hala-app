@@ -277,6 +277,30 @@
   .voice-bubble{display:flex;align-items:center;gap:8px;min-width:160px;}
   .voice-bubble audio{height:32px;max-width:180px;}
 
+  .wave-row{
+    display:flex;align-items:center;justify-content:center;gap:4px;
+    padding:8px 0;
+  }
+  .wave-bar{
+    width:4px;height:8px;border-radius:2px;
+    background:var(--rose);
+    animation:wave 0.9s infinite ease-in-out;
+  }
+  .wave-bar:nth-child(1){animation-delay:0s;}
+  .wave-bar:nth-child(2){animation-delay:.1s;}
+  .wave-bar:nth-child(3){animation-delay:.2s;}
+  .wave-bar:nth-child(4){animation-delay:.3s;}
+  .wave-bar:nth-child(5){animation-delay:.2s;}
+  .wave-bar:nth-child(6){animation-delay:.1s;}
+  .wave-bar:nth-child(7){animation-delay:0s;}
+  @keyframes wave{
+    0%,100%{height:8px;}
+    50%{height:26px;}
+  }
+  #recTimer{
+    margin-right:10px;font-size:12px;color:var(--muted);
+  }
+
   /* ===== Sticker editor modal ===== */
   .modal-bg{
     position:fixed;inset:0;background:rgba(15,8,18,.75);
@@ -289,7 +313,7 @@
     width:100%;max-width:640px;
     border-radius:22px 22px 0 0;
     padding:18px 16px calc(18px + env(safe-area-inset-bottom));
-    border:1px solid #4a2f52;
+      border:1px solid #4a2f52;
     border-bottom:none;
     animation:slideup .25s ease;
   }
@@ -371,6 +395,12 @@
   </div>
 </main>
 <div class="typing-row" id="typingRow"></div>
+<div class="wave-row" id="waveRow" style="display:none;">
+  <span class="wave-bar"></span><span class="wave-bar"></span><span class="wave-bar"></span>
+  <span class="wave-bar"></span><span class="wave-bar"></span><span class="wave-bar"></span>
+  <span class="wave-bar"></span>
+  <span id="recTimer">0:00</span>
+</div>
 
 <footer>
   <div class="composer">
@@ -425,7 +455,7 @@ const chatEl = document.getElementById('chat');
 const emptyState = document.getElementById('emptyState');
 const btnEyad = document.getElementById('btnEyad');
 const btnHala = document.getElementById('btnHala');
-  const statusDot = document.getElementById('statusDot');
+const statusDot = document.getElementById('statusDot');
 
 function setWho(who){
   ME = who;
@@ -597,8 +627,7 @@ async function sendMessage(payload){
     alert('ما انبعتت الرسالة، جرب كمان مرة 🤍');
     localMessages = localMessages.filter(m => m.id !== optimistic.id);
     render(localMessages);
-  }
-}
+  }}
 
 document.getElementById('sendBtn').onclick = ()=>{
   const input = document.getElementById('textInput');
@@ -816,29 +845,88 @@ async function checkTyping(){
 setInterval(checkTyping, 900);
 
 /* ===== الرسائل الصوتية ===== */
-let mediaRecorder, audioChunks = [], isRecording = false;
+let mediaRecorder, audioChunks = [], isRecording = false, recStartTime, recTimerInt;
 const micBtn = document.getElementById('micBtn');
+const waveRow = document.getElementById('waveRow');
+const recTimerEl = document.getElementById('recTimer');
+
+function pickMimeType(){
+  const candidates = ['audio/mp4','audio/webm;codecs=opus','audio/webm','audio/ogg;codecs=opus','audio/aac'];
+  for(const c of candidates){
+    if(window.MediaRecorder && MediaRecorder.isTypeSupported && MediaRecorder.isTypeSupported(c)) return c;
+  }
+  return ''; // خلي المتصفح يختار الافتراضي
+}
+
+function formatTimer(ms){
+  const s = Math.floor(ms/1000);
+  const m = Math.floor(s/60);
+  const ss = String(s%60).padStart(2,'0');
+  return `${m}:${ss}`;
+}
 
 micBtn.onclick = async ()=>{
   if(!isRecording){
+    if(!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia){
+      alert('المتصفح ما بيدعم تسجيل الصوت 😔 جرب تفتح الموقع بمتصفح Safari أو Chrome محدّث');
+      return;
+    }
     try{
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      mediaRecorder = new MediaRecorder(stream);
+      const mimeType = pickMimeType();
+      mediaRecorder = mimeType ? new MediaRecorder(stream, { mimeType }) : new MediaRecorder(stream);
       audioChunks = [];
-      mediaRecorder.ondataavailable = (e)=>audioChunks.push(e.data);
+
+      mediaRecorder.ondataavailable = (e)=>{ if(e.data && e.data.size > 0) audioChunks.push(e.data); };
+
       mediaRecorder.onstop = ()=>{
-        const blob = new Blob(audioChunks, { type: 'audio/webm' });
+        stream.getTracks().forEach(t=>t.stop());
+        clearInterval(recTimerInt);
+        waveRow.style.display = 'none';
+
+        if(!audioChunks.length){
+          alert('ما انسجل صوت، جرب كمان مرة 🎤');
+          return;
+        }
+        const blob = new Blob(audioChunks, { type: mediaRecorder.mimeType || 'audio/mp4' });
+        if(blob.size === 0){
+          alert('التسجيل طلع فاضي، جرب كمان مرة');
+          return;
+        }
         const reader = new FileReader();
         reader.onload = ()=>{
           sendMessage({ type:'voice', audio: reader.result, text:'' });
         };
+        reader.onerror = ()=> alert('صار خطأ بمعالجة التسجيل، جرب كمان مرة');
         reader.readAsDataURL(blob);
-        stream.getTracks().forEach(t=>t.stop());
       };
+
+      mediaRecorder.onerror = ()=>{
+        alert('صار خطأ أثناء التسجيل، جرب كمان مرة');
+        isRecording = false;
+        micBtn.classList.remove('recording');
+        micBtn.textContent = '🎤';
+        waveRow.style.display = 'none';
+        clearInterval(recTimerInt);
+      };
+
       mediaRecorder.start();
       isRecording = true;
       micBtn.classList.add('recording');
       micBtn.textContent = '⏹';
+      waveRow.style.display = 'flex';
+      recStartTime = Date.now();
+      recTimerEl.textContent = '0:00';
+      recTimerInt = setInterval(()=>{
+        const elapsed = Date.now() - recStartTime;
+        recTimerEl.textContent = formatTimer(elapsed);
+        if(elapsed > 60000){ // حد أقصى دقيقة وحدة
+          mediaRecorder.stop();
+          isRecording = false;
+          micBtn.classList.remove('recording');
+          micBtn.textContent = '🎤';
+        }
+      }, 300);
     }catch(e){
       alert('لازم توافق على إذن الميكروفون حتى نسجل صوت 🎤');
     }
@@ -852,3 +940,5 @@ micBtn.onclick = async ()=>{
 </script>
 </body>
 </html>
+
+  
