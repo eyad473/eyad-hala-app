@@ -224,6 +224,59 @@
   }
   .dot.off{background:#c0555a;}
 
+  /* ===== Theme picker ===== */
+  .theme-btn{
+    position:absolute;left:16px;top:22px;
+    width:32px;height:32px;border-radius:50%;
+    border:1px solid #4a2f52;background:var(--bg-card);
+    color:var(--cream);font-size:14px;cursor:pointer;
+    display:flex;align-items:center;justify-content:center;
+  }
+  .theme-panel{
+    display:none;
+    position:absolute;left:16px;top:60px;
+    background:var(--bg-card);border:1px solid #4a2f52;
+    border-radius:14px;padding:10px;z-index:40;gap:8px;
+  }
+  .theme-panel.open{display:flex;}
+  .theme-swatch{
+    width:30px;height:30px;border-radius:50%;cursor:pointer;
+    border:2px solid transparent;
+  }
+  .theme-swatch.active{border-color:var(--cream);}
+
+  /* ===== Typing indicator ===== */
+  .typing-row{
+    text-align:center;font-size:12px;color:var(--muted);
+    padding:4px 0;font-style:italic;min-height:18px;
+  }
+
+  /* ===== Reactions ===== */
+  .bubble{position:relative;}
+  .reaction-badge{
+    position:absolute;bottom:-10px;
+    background:var(--bg-card-2);border:1px solid #4a2f52;
+    border-radius:12px;padding:1px 6px;font-size:13px;
+  }
+  .bubble-row.me .reaction-badge{left:-6px;}
+  .bubble-row.them .reaction-badge{right:-6px;}
+  .react-popup{
+    position:fixed;
+    background:var(--bg-card);border:1px solid #4a2f52;
+    border-radius:24px;padding:6px 10px;display:flex;gap:6px;
+    z-index:60;box-shadow:0 6px 20px rgba(0,0,0,.5);
+    animation:pop .15s ease;
+  }
+  .react-popup span{font-size:20px;cursor:pointer;padding:2px;}
+
+  /* ===== Voice recording ===== */
+  .mic-btn.recording{
+    background:#c0555a;animation:pulse 1s infinite;
+  }
+  @keyframes pulse{0%,100%{opacity:1;}50%{opacity:.5;}}
+  .voice-bubble{display:flex;align-items:center;gap:8px;min-width:160px;}
+  .voice-bubble audio{height:32px;max-width:180px;}
+
   /* ===== Sticker editor modal ===== */
   .modal-bg{
     position:fixed;inset:0;background:rgba(15,8,18,.75);
@@ -291,6 +344,13 @@
 <body>
 
 <header>
+  <button class="theme-btn" id="themeBtn">🎨</button>
+  <div class="theme-panel" id="themePanel">
+    <span class="theme-swatch" data-theme="purple" style="background:linear-gradient(135deg,#E3AFAE,#CDA35B)"></span>
+    <span class="theme-swatch" data-theme="night" style="background:linear-gradient(135deg,#6C8EBF,#2B3A55)"></span>
+    <span class="theme-swatch" data-theme="dawn" style="background:linear-gradient(135deg,#F4A6B7,#F7D6B0)"></span>
+    <span class="theme-swatch" data-theme="sea" style="background:linear-gradient(135deg,#4FB8AE,#2E5C6B)"></span>
+  </div>
   <div class="names">
     <span class="name eyad">إياد</span>
     <span class="thread-icon"><svg viewBox="0 0 34 14"><path d="M0 7 Q 8 0, 17 7 T 34 7"/></svg></span>
@@ -310,14 +370,16 @@
     ابعتوا أول كلمة أو ستيكر ونبدأ الحكاية 🤍
   </div>
 </main>
+<div class="typing-row" id="typingRow"></div>
 
 <footer>
   <div class="composer">
     <button class="icon-btn" id="stickerBtn" title="ستيكر">🎨</button>
+    <button class="icon-btn mic-btn" id="micBtn" title="رسالة صوتية">🎤</button>
     <input type="text" id="textInput" placeholder="اكتب شي حلو...">
     <button class="icon-btn send-btn" id="sendBtn">↩</button>
   </div>
-  <div class="status">متزامن مع تيليجرام <span class="dot" id="statusDot"></span></div>
+  <div class="status">متصل <span class="dot" id="statusDot"></span></div>
 </footer>
 
 <div class="modal-bg" id="modalBg">
@@ -384,6 +446,36 @@ function fmtTime(ts){
   return d.toLocaleTimeString('ar', {hour:'2-digit', minute:'2-digit'});
 }
 
+function showReactPopup(x, y, messageId){
+  document.querySelectorAll('.react-popup').forEach(p=>p.remove());
+  const popup = document.createElement('div');
+  popup.className = 'react-popup';
+  popup.style.left = Math.max(8, x-90) + 'px';
+  popup.style.top = (y-54) + 'px';
+  ['❤️','😂','😮','😢','👍','🔥'].forEach(emoji=>{
+    const span = document.createElement('span');
+    span.textContent = emoji;
+    span.onclick = async ()=>{
+      popup.remove();
+      await fetch(`${FN}/react`, {
+        method:'POST',
+        headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({messageId, emoji, from: ME})
+      });
+      lastCount = -1;
+      loadMessages();
+    };
+    popup.appendChild(span);
+  });
+  document.body.appendChild(popup);
+  setTimeout(()=>{
+    document.addEventListener('click', function closeOnce(){
+      popup.remove();
+      document.removeEventListener('click', closeOnce);
+    }, {once:true});
+  }, 50);
+}
+
 function render(list){
   if(!list.length){
     chatEl.innerHTML = '';
@@ -410,6 +502,15 @@ function render(list){
         cap.textContent = m.text;
         bubble.appendChild(cap);
       }
+    } else if(m.type === 'voice' && m.audio){
+      const vw = document.createElement('div');
+      vw.className = 'voice-bubble';
+      vw.innerHTML = '🎤';
+      const audio = document.createElement('audio');
+      audio.src = m.audio;
+      audio.controls = true;
+      vw.appendChild(audio);
+      bubble.appendChild(vw);
     } else {
       const txt = document.createElement('div');
       txt.textContent = m.text;
@@ -419,6 +520,30 @@ function render(list){
     meta.className = 'meta';
     meta.textContent = fmtTime(m.timestamp);
     bubble.appendChild(meta);
+
+    if(m.reaction){
+      const badge = document.createElement('div');
+      badge.className = 'reaction-badge';
+      badge.textContent = m.reaction;
+      bubble.appendChild(badge);
+    }
+
+    // ضغط مطول لإظهار قائمة الردود
+    if(m.id && !String(m.id).startsWith('pending-')){
+      let pressTimer;
+      const startPress = (e)=>{
+        const point = e.touches ? e.touches[0] : e;
+        pressTimer = setTimeout(()=>showReactPopup(point.clientX, point.clientY, m.id), 450);
+      };
+      const cancelPress = ()=>clearTimeout(pressTimer);
+      bubble.addEventListener('mousedown', startPress);
+      bubble.addEventListener('touchstart', startPress);
+      bubble.addEventListener('mouseup', cancelPress);
+      bubble.addEventListener('mouseleave', cancelPress);
+      bubble.addEventListener('touchend', cancelPress);
+      bubble.addEventListener('touchmove', cancelPress);
+    }
+
     row.appendChild(bubble);
     chatEl.appendChild(row);
   });
@@ -499,125 +624,4 @@ function getPos(e){
 }
 function start(e){ drawing=true; const p=getPos(e); ctx.beginPath(); ctx.moveTo(p.x,p.y); e.preventDefault();}
 function move(e){ if(!drawing) return; const p=getPos(e); ctx.strokeStyle=color; ctx.lineTo(p.x,p.y); ctx.stroke(); e.preventDefault();}
-function end(){ drawing=false; }
-canvas.addEventListener('mousedown', start);
-canvas.addEventListener('mousemove', move);
-window.addEventListener('mouseup', end);
-canvas.addEventListener('touchstart', start);
-canvas.addEventListener('touchmove', move);
-canvas.addEventListener('touchend', end);
-
-document.querySelectorAll('.swatch').forEach(sw=>{
-  sw.onclick = ()=>{
-    document.querySelectorAll('.swatch').forEach(s=>s.classList.remove('active'));
-    sw.classList.add('active');
-    color = sw.dataset.c;
-  };
-});
-document.getElementById('clearCanvas').onclick = ()=>{
-  ctx.fillStyle='#fff'; ctx.fillRect(0,0,canvas.width,canvas.height);
-};
-
-const tabDraw = document.getElementById('tabDraw');
-const tabUpload = document.getElementById('tabUpload');
-const drawWrap = document.getElementById('drawWrap');
-const uploadWrap = document.getElementById('uploadWrap');
-tabDraw.onclick = ()=>{
-  tabDraw.classList.add('active'); tabUpload.classList.remove('active');
-  drawWrap.classList.add('active'); uploadWrap.classList.remove('active');
-};
-tabUpload.onclick = ()=>{
-  tabUpload.classList.add('active'); tabDraw.classList.remove('active');
-  uploadWrap.classList.add('active'); drawWrap.classList.remove('active');
-};
-
-let uploadedImage = null;
-const dropZone = document.getElementById('dropZone');
-const fileInput = document.getElementById('fileInput');
-dropZone.onclick = ()=>fileInput.click();
-fileInput.onchange = ()=>{
-  const file = fileInput.files[0];
-  if(!file) return;
-  const reader = new FileReader();
-  reader.onload = ()=>{
-    uploadedImage = reader.result;
-    document.getElementById('preview').innerHTML = `<img src="${uploadedImage}">`;
-  };
-  reader.readAsDataURL(file);
-};
-
-document.getElementById('stickerBtn').onclick = ()=>{
-  modalBg.classList.add('open');
-};
-document.getElementById('cancelModal').onclick = ()=>{
-  modalBg.classList.remove('open');
-};
-
-document.getElementById('confirmModal').onclick = ()=>{
-  const caption = document.getElementById('capInput').value.trim();
-  let dataUrl;
-  if(uploadWrap.classList.contains('active')){
-    if(!uploadedImage){ alert('اختار صورة الأول'); return; }
-    dataUrl = uploadedImage;
-  } else {
-    dataUrl = canvas.toDataURL('image/png');
-  }
-  sendMessage({text: caption, type:'sticker', image: dataUrl});
-  modalBg.classList.remove('open');
-  document.getElementById('capInput').value='';
-  uploadedImage=null;
-  document.getElementById('preview').innerHTML='';
-};
-
-setWho(ME);
-loadMessages();
-poller = setInterval(loadMessages, 1500);
-
-/* ===== الإشعارات (Push Notifications) ===== */
-const VAPID_PUBLIC_KEY = 'BFjNF8HRXnpw4m5RBru6srtVahFtd80QSqG9ydMxguyHWmVutzPeVnE37hQorhyH6E8MCyYs9lqMC1Tmt9olUaU';
-
-function urlBase64ToUint8Array(base64String) {
-  const padding = '='.repeat((4 - base64String.length % 4) % 4);
-  const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/');
-  const rawData = atob(base64);
-  const outputArray = new Uint8Array(rawData.length);
-  for (let i = 0; i < rawData.length; ++i) outputArray[i] = rawData.charCodeAt(i);
-  return outputArray;
-}
-
-async function enableNotifications(){
-  if(!('serviceWorker' in navigator) || !('PushManager' in window)){
-    alert('المتصفح ما بيدعم الإشعارات 😔');
-    return;
-  }
-  try{
-    const reg = await navigator.serviceWorker.register('/sw.js');
-    const perm = await Notification.requestPermission();
-    if(perm !== 'granted'){
-      alert('لازم توافق على الإذن حتى توصلك الإشعارات');
-      return;
-    }
-    const sub = await reg.pushManager.subscribe({
-      userVisibleOnly: true,
-      applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC_KEY)
-    });
-    await fetch(`${FN}/subscribe`, {
-      method:'POST',
-      headers:{'Content-Type':'application/json'},
-      body: JSON.stringify({ who: ME, subscription: sub })
-    });
-    document.getElementById('notifBtn').textContent = '🔔 الإشعارات مفعّلة ✓';
-    localStorage.setItem('eh_notif_' + ME, '1');
-  } catch(e){
-    alert('صار خطأ بتفعيل الإشعارات، جرب كمان مرة');
-  }
-}
-
-document.getElementById('notifBtn').onclick = enableNotifications;
-
-if(localStorage.getItem('eh_notif_' + ME) === '1'){
-  document.getElementById('notifBtn').textContent = '🔔 الإشعارات مفعّلة ✓';
-}
-</script>
-</body>
-</html>
+f
