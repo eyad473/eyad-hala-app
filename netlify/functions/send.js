@@ -19,7 +19,7 @@ async function notifyOther(from, text, type) {
     if (!subscription) return;
 
     const senderName = from === 'eyad' ? 'إياد' : 'حلا';
-    const body = type === 'sticker' ? 'بعتلك ستيكر 🎨' : (text || 'رسالة جديدة');
+    const body = type === 'sticker' ? 'بعتلك ستيكر 🎨' : type === 'voice' ? 'بعتلك رسالة صوتية 🎤' : (text || 'رسالة جديدة');
 
     await webpush.sendNotification(
       subscription,
@@ -36,7 +36,7 @@ export default async (req) => {
   }
 
   try {
-    const { from, text, image, type } = await req.json();
+    const { from, text, image, audio, type } = await req.json();
     if (from !== 'eyad' && from !== 'hala') {
       return new Response(JSON.stringify({ error: 'مرسل غير معروف' }), { status: 400 });
     }
@@ -48,6 +48,7 @@ export default async (req) => {
       from,
       text: text || '',
       image: type === 'sticker' ? image : null,
+      audio: type === 'voice' ? audio : null,
       type: type || 'text',
       timestamp: Date.now(),
     };
