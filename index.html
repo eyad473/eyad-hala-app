@@ -423,7 +423,7 @@ let poller = null;
 
 const chatEl = document.getElementById('chat');
 const emptyState = document.getElementById('emptyState');
-const btnEyad = document.getElementById('btnEyad');
+      const btnEyad = document.getElementById('btnEyad');
 const btnHala = document.getElementById('btnHala');
 const statusDot = document.getElementById('statusDot');
 
@@ -624,4 +624,229 @@ function getPos(e){
 }
 function start(e){ drawing=true; const p=getPos(e); ctx.beginPath(); ctx.moveTo(p.x,p.y); e.preventDefault();}
 function move(e){ if(!drawing) return; const p=getPos(e); ctx.strokeStyle=color; ctx.lineTo(p.x,p.y); ctx.stroke(); e.preventDefault();}
-f
+function end(){ drawing=false; }
+canvas.addEventListener('mousedown', start);
+canvas.addEventListener('mousemove', move);
+window.addEventListener('mouseup', end);
+canvas.addEventListener('touchstart', start);
+canvas.addEventListener('touchmove', move);
+canvas.addEventListener('touchend', end);
+
+document.querySelectorAll('.swatch').forEach(sw=>{
+  sw.onclick = ()=>{
+    document.querySelectorAll('.swatch').forEach(s=>s.classList.remove('active'));
+    sw.classList.add('active');
+    color = sw.dataset.c;
+  };
+});
+document.getElementById('clearCanvas').onclick = ()=>{
+  ctx.fillStyle='#fff'; ctx.fillRect(0,0,canvas.width,canvas.height);
+};
+
+const tabDraw = document.getElementById('tabDraw');
+const tabUpload = document.getElementById('tabUpload');
+const drawWrap = document.getElementById('drawWrap');
+const uploadWrap = document.getElementById('uploadWrap');
+tabDraw.onclick = ()=>{
+  tabDraw.classList.add('active'); tabUpload.classList.remove('active');
+  drawWrap.classList.add('active'); uploadWrap.classList.remove('active');
+};
+tabUpload.onclick = ()=>{
+  tabUpload.classList.add('active'); tabDraw.classList.remove('active');
+  uploadWrap.classList.add('active'); drawWrap.classList.remove('active');
+};
+
+let uploadedImage = null;
+const dropZone = document.getElementById('dropZone');
+const fileInput = document.getElementById('fileInput');
+dropZone.onclick = ()=>fileInput.click();
+fileInput.onchange = ()=>{
+  const file = fileInput.files[0];
+  if(!file) return;
+  const reader = new FileReader();
+  reader.onload = ()=>{
+    uploadedImage = reader.result;
+    document.getElementById('preview').innerHTML = `<img src="${uploadedImage}">`;
+  };
+  reader.readAsDataURL(file);
+};
+
+document.getElementById('stickerBtn').onclick = ()=>{
+  modalBg.classList.add('open');
+};
+document.getElementById('cancelModal').onclick = ()=>{
+  modalBg.classList.remove('open');
+};
+
+document.getElementById('confirmModal').onclick = ()=>{
+  const caption = document.getElementById('capInput').value.trim();
+  let dataUrl;
+  if(uploadWrap.classList.contains('active')){
+    if(!uploadedImage){ alert('اختار صورة الأول'); return; }
+    dataUrl = uploadedImage;
+  } else {
+    dataUrl = canvas.toDataURL('image/png');
+  }
+  sendMessage({text: caption, type:'sticker', image: dataUrl});
+  modalBg.classList.remove('open');
+  document.getElementById('capInput').value='';
+  uploadedImage=null;
+  document.getElementById('preview').innerHTML='';
+};
+
+setWho(ME);
+loadMessages();
+poller = setInterval(loadMessages, 1500);
+
+/* ===== الإشعارات (Push Notifications) ===== */
+const VAPID_PUBLIC_KEY = 'BFjNF8HRXnpw4m5RBru6srtVahFtd80QSqG9ydMxguyHWmVutzPeVnE37hQorhyH6E8MCyYs9lqMC1Tmt9olUaU';
+
+function urlBase64ToUint8Array(base64String) {
+  const padding = '='.repeat((4 - base64String.length % 4) % 4);
+  const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/');
+  const rawData = atob(base64);
+  const outputArray = new Uint8Array(rawData.length);
+  for (let i = 0; i < rawData.length; ++i) outputArray[i] = rawData.charCodeAt(i);
+  return outputArray;
+}
+
+async function enableNotifications(){
+  if(!('serviceWorker' in navigator) || !('PushManager' in window)){
+    alert('المتصفح ما بيدعم الإشعارات 😔');
+    return;
+  }
+  try{
+    const reg = await navigator.serviceWorker.register('/sw.js');
+    const perm = await Notification.requestPermission();
+    if(perm !== 'granted'){
+      alert('لازم توافق على الإذن حتى توصلك الإشعارات');
+      return;
+    }
+    const sub = await reg.pushManager.subscribe({
+      userVisibleOnly: true,
+      applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC_KEY)
+    });
+    await fetch(`${FN}/subscribe`, {
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ who: ME, subscription: sub })
+    });
+    document.getElementById('notifBtn').textContent = '🔔 الإشعارات مفعّلة ✓';
+    localStorage.setItem('eh_notif_' + ME, '1');
+  } catch(e){
+    alert('صار خطأ بتفعيل الإشعارات، جرب كمان مرة');
+  }
+}
+
+document.getElementById('notifBtn').onclick = enableNotifications;
+
+if(localStorage.getItem('eh_notif_' + ME) === '1'){
+  document.getElementById('notifBtn').textContent = '🔔 الإشعارات مفعّلة ✓';
+}
+
+/* ===== الثيمات ===== */
+const THEMES = {
+  purple: {bg:'#1E1224', card:'#2B1832', card2:'#33203B', rose:'#E3AFAE', gold:'#CDA35B', cream:'#F7ECE4', muted:'#B79FB0', thread:'#8A5C6B'},
+  night:  {bg:'#0F1B2D', card:'#182A45', card2:'#1F3555', rose:'#8FB6E0', gold:'#5C8CC4', cream:'#EAF1FB', muted:'#7C93B5', thread:'#3C5A82'},
+  dawn:   {bg:'#2B1A22', card:'#3B222D', card2:'#472A36', rose:'#F4A6B7', gold:'#F7D6B0', cream:'#FFF3EC', muted:'#C79AA6', thread:'#B6717F'},
+  sea:    {bg:'#0F2A2E', card:'#173B3F', card2:'#1E4A4F', rose:'#4FB8AE', gold:'#7ED4C9', cream:'#EAFBF8', muted:'#7FAFA9', thread:'#2E5C6B'}
+};
+
+function applyTheme(name){
+  const t = THEMES[name] || THEMES.purple;
+  const root = document.documentElement.style;
+  root.setProperty('--bg-deep', t.bg);
+  root.setProperty('--bg-card', t.card);
+  root.setProperty('--bg-card-2', t.card2);
+  root.setProperty('--rose', t.rose);
+  root.setProperty('--gold', t.gold);
+  root.setProperty('--cream', t.cream);
+  root.setProperty('--muted', t.muted);
+  root.setProperty('--thread', t.thread);
+  localStorage.setItem('eh_theme', name);
+  document.querySelectorAll('.theme-swatch').forEach(s=>{
+    s.classList.toggle('active', s.dataset.theme === name);
+  });
+}
+
+document.getElementById('themeBtn').onclick = (e)=>{
+  e.stopPropagation();
+  document.getElementById('themePanel').classList.toggle('open');
+};
+document.querySelectorAll('.theme-swatch').forEach(sw=>{
+  sw.onclick = ()=>{
+    applyTheme(sw.dataset.theme);
+    document.getElementById('themePanel').classList.remove('open');
+  };
+});
+document.addEventListener('click', (e)=>{
+  const panel = document.getElementById('themePanel');
+  if(panel.classList.contains('open') && !panel.contains(e.target) && e.target.id !== 'themeBtn'){
+    panel.classList.remove('open');
+  }
+});
+applyTheme(localStorage.getItem('eh_theme') || 'purple');
+
+/* ===== مؤشر الكتابة ===== */
+let typingTimeout;
+document.getElementById('textInput').addEventListener('input', ()=>{
+  clearTimeout(typingTimeout);
+  fetch(`${FN}/typing`, {
+    method:'POST',
+    headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({from: ME})
+  }).catch(()=>{});
+});
+
+async function checkTyping(){
+  try{
+    const res = await fetch(`${FN}/typing`);
+    const status = await res.json();
+    const row = document.getElementById('typingRow');
+    if(status && status.from && status.from !== ME && (Date.now() - status.ts) < 3000){
+      row.textContent = (status.from === 'eyad' ? 'إياد' : 'حلا') + ' عم يكتب...';
+    } else {
+      row.textContent = '';
+    }
+  }catch(e){}
+}
+setInterval(checkTyping, 1200);
+
+/* ===== الرسائل الصوتية ===== */
+let mediaRecorder, audioChunks = [], isRecording = false;
+const micBtn = document.getElementById('micBtn');
+
+micBtn.onclick = async ()=>{
+  if(!isRecording){
+    try{
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      mediaRecorder = new MediaRecorder(stream);
+      audioChunks = [];
+      mediaRecorder.ondataavailable = (e)=>audioChunks.push(e.data);
+      mediaRecorder.onstop = ()=>{
+        const blob = new Blob(audioChunks, { type: 'audio/webm' });
+        const reader = new FileReader();
+        reader.onload = ()=>{
+          sendMessage({ type:'voice', audio: reader.result, text:'' });
+        };
+        reader.readAsDataURL(blob);
+        stream.getTracks().forEach(t=>t.stop());
+      };
+      mediaRecorder.start();
+      isRecording = true;
+      micBtn.classList.add('recording');
+      micBtn.textContent = '⏹';
+    }catch(e){
+      alert('لازم توافق على إذن الميكروفون حتى نسجل صوت 🎤');
+    }
+  } else {
+    mediaRecorder.stop();
+    isRecording = false;
+    micBtn.classList.remove('recording');
+    micBtn.textContent = '🎤';
+  }
+};
+</script>
+</body>
+</html>
+
