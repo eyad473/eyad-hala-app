@@ -10,6 +10,15 @@ export default {
       if (path === '/api/send' && request.method === 'POST') {
         return await sendMessage(request, env);
       }
+      if (path === '/api/schedule' && request.method === 'POST') {
+        return await scheduleMessage(request, env);
+      }
+      if (path === '/api/meta' && request.method === 'GET') {
+        return await getMeta(env);
+      }
+      if (path === '/api/meta' && request.method === 'POST') {
+        return await setMeta(request, env);
+      }
       if (path === '/api/react' && request.method === 'POST') {
         return await reactMessage(request, env);
       }
@@ -28,12 +37,26 @@ export default {
       if (path === '/api/seen' && request.method === 'GET') {
         return await getSeen(env);
       }
+      if (path === '/api/schedule' && request.method === 'POST') {
+        return await scheduleMessage(request, env);
+      }
+      if (path === '/api/startdate' && request.method === 'POST') {
+        return await postStartDate(request, env);
+      }
+      if (path === '/api/startdate' && request.method === 'GET') {
+        return await getStartDate(env);
+      }
     } catch (e) {
       return json({ error: e.message }, 500);
     }
 
     // أي طلب تاني: خدمة الملفات الثابتة (index.html, sw.js...)
     return env.ASSETS.fetch(request);
+  },
+
+  // يشتغل تلقائياً كل دقيقة، يفحص الرسائل المجدولة ويرسل يلي وقتها استحق
+  async scheduled(event, env, ctx) {
+    ctx.waitUntil(processScheduledMessages(env));
   },
 };
 
@@ -50,12 +73,62 @@ async function getMessagesList(env) {
 }
 
 async function getMessages(env) {
-  const list = await getMessagesList(env);
+  let list = await getMessagesList(env);
+
+  // تسليم الرسائل المجدولة يلي حان وقتها
+  const schedRaw = await env.EYAD_HALA_KV.get('scheduled');
+  if (schedRaw) {
+    const sched = JSON.parse(schedRaw);
+    const now = Date.now();
+    const due = sched.filter((s) => s.deliverAt <= now);
+    const remaining = sched.filter((s) => s.deliverAt > now);
+    if (due.length) {
+      due.forEach((s) => {
+        list.push({
+          id: `local-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+          from: s.from,
+          text: s.text,
+          type: 'text',
+          scheduled: true,
+          timestamp: Date.now(),
+        });
+      });
+      if (list.length > 500) list.splice(0, list.length - 500);
+      await env.EYAD_HALA_KV.put('messages_log', JSON.stringify(list));
+      await env.EYAD_HALA_KV.put('scheduled', JSON.stringify(remaining));
+    }
+  }
+
   return json(list);
 }
 
+async function scheduleMessage(request, env) {
+  const { from, text, deliverAt } = await request.json();
+  if (from !== 'eyad' && from !== 'hala') return json({ error: 'مرسل غير معروف' }, 400);
+  if (!text || !deliverAt) return json({ error: 'ناقص نص أو وقت' }, 400);
+  const raw = await env.EYAD_HALA_KV.get('scheduled');
+  const sched = raw ? JSON.parse(raw) : [];
+  sched.push({ from, text, deliverAt });
+  await env.EYAD_HALA_KV.put('scheduled', JSON.stringify(sched));
+  return json({ ok: true });
+}
+
+async function getMeta(env) {
+  const raw = await env.EYAD_HALA_KV.get('meta');
+  return new Response(raw || '{}', { status: 200, headers: { 'Content-Type': 'application/json' } });
+}
+
+async function setMeta(request, env) {
+  const body = await request.json();
+  const raw = await env.EYAD_HALA_KV.get('meta');
+  const meta = raw ? JSON.parse(raw) : {};
+  Object.assign(meta, body);
+  await env.EYAD_HALA_KV.put('meta', JSON.stringify(meta));
+  return json({ ok: true });
+}
+
 async function sendMessage(request, env) {
-  const { from, text, image, audio, media, mediaType, replyTo, type } = await request.json();
+  const { from, text, image, audio, media, mediaType, replyTo, type, sos } = await request.json();
   if (from !== 'eyad' && from !== 'hala') {
     return json({ error: 'مرسل غير معروف' }, 400);
   }
@@ -69,6 +142,7 @@ async function sendMessage(request, env) {
     media: type === 'media' ? media : null,
     mediaType: type === 'media' ? mediaType : null,
     replyTo: replyTo || null,
+    sos: sos || false,
     type: type || 'text',
     timestamp: Date.now(),
   };
@@ -135,5 +209,4 @@ async function getSeen(env) {
   const eyad = eyadRaw ? JSON.parse(eyadRaw).ts : 0;
   const hala = halaRaw ? JSON.parse(halaRaw).ts : 0;
   return json({ eyad, hala });
-      }
-    
+               }
