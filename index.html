@@ -7,7 +7,7 @@
 <link rel="icon" type="image/png" href="/icon-192.png">
 <link rel="apple-touch-icon" href="/icon-192.png">
 <meta name="theme-color" content="#1E1224">
-<title>إياد ✶ حلا</title>
+<title>سَما</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Aref+Ruqaa:wght@400;700&family=Tajawal:wght@300;400;500;700&display=swap" rel="stylesheet">
 <style>
@@ -314,7 +314,7 @@
     position:fixed;inset:0;pointer-events:none;z-index:0;
     opacity:0;transition:opacity 2s;
   }
-    .stars.on{opacity:1;}
+  .stars.on{opacity:1;}
   .star{
     position:absolute;background:#fff;border-radius:50%;
     animation:twinkle 3s infinite ease-in-out;
@@ -332,7 +332,6 @@
   }
   .distance-row.flash .pulse-dot{animation:distFlash 1s ease;}
   @keyframes distFlash{0%{box-shadow:0 0 0 0 rgba(227,175,174,.8);}100%{box-shadow:0 0 0 12px rgba(227,175,174,0);}}
-
   /* ===== الاحتفال (قلوب متطايرة) ===== */
   .float-heart{
     position:fixed;bottom:-40px;font-size:24px;z-index:99;
@@ -505,6 +504,25 @@
 </head>
 <body>
 
+<!-- ===== بوابة سَما التمويهية ===== -->
+<div id="gateScreen" style="position:fixed;inset:0;z-index:200;background:linear-gradient(180deg,#0D1426,#1E3454);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:30px;font-family:'Tajawal',sans-serif;">
+  <div id="gateStars" style="position:absolute;inset:0;pointer-events:none;"></div>
+  <div style="font-size:64px;">🌙</div>
+  <div style="font-family:'Aref Ruqaa',serif;font-size:38px;color:#F3CE80;letter-spacing:2px;">سَما</div>
+  <div style="color:#8FA8C9;font-size:14px;">وين حابب تسرح الليلة؟</div>
+  <div style="display:flex;gap:18px;">
+    <button id="gateMoon" style="background:rgba(255,255,255,0.07);border:1px solid rgba(255,255,255,0.15);color:#EAF1FB;padding:14px 30px;border-radius:18px;font-family:'Tajawal',sans-serif;font-size:16px;cursor:pointer;backdrop-filter:blur(8px);">القمر 🌕</button>
+    <button id="gateStarsBtn" style="background:rgba(255,255,255,0.07);border:1px solid rgba(255,255,255,0.15);color:#EAF1FB;padding:14px 30px;border-radius:18px;font-family:'Tajawal',sans-serif;font-size:16px;cursor:pointer;backdrop-filter:blur(8px);">النجوم ✨</button>
+  </div>
+</div>
+
+<!-- ===== لعبة التقاط النجوم (تمويه) ===== -->
+<div id="gameScreen" style="display:none;position:fixed;inset:0;z-index:190;background:linear-gradient(180deg,#0D1426,#1E3454);font-family:'Tajawal',sans-serif;overflow:hidden;">
+  <div style="position:absolute;top:16px;right:16px;color:#F3CE80;font-size:18px;z-index:5;">النقاط: <span id="gameScore">0</span></div>
+  <button id="gameBack" style="position:absolute;top:12px;left:12px;z-index:5;background:rgba(255,255,255,0.08);border:1px solid rgba(255,255,255,0.15);color:#EAF1FB;padding:6px 16px;border-radius:12px;font-family:'Tajawal',sans-serif;cursor:pointer;">رجوع</button>
+  <div style="position:absolute;top:50px;width:100%;text-align:center;color:#8FA8C9;font-size:13px;">القط النجوم قبل ما تختفي ✨</div>
+</div>
+
 <div class="stars" id="starsLayer"></div>
 <header>
   <button class="theme-btn" id="themeBtn">🎨</button>
@@ -630,7 +648,7 @@ function setWho(who){
 }
 btnEyad.onclick = ()=>setWho('eyad');
 btnHala.onclick = ()=>setWho('hala');
-  
+
 function fmtTime(ts){
   const d = new Date(ts);
   return d.toLocaleTimeString('ar', {hour:'2-digit', minute:'2-digit'});
@@ -649,7 +667,7 @@ function showReactPopup(x, y, msg){
     span.onclick = async (ev)=>{
       ev.stopPropagation();
       popup.remove();
-      try{
+        try{
         const res = await fetch(`${FN}/react`, {
           method:'POST',
           headers:{'Content-Type':'application/json'},
@@ -945,6 +963,7 @@ async function loadMessages(){
 }
 
 let localMessages = [];
+
 async function sendMessage(payload){
   // نعرض الرسالة فوراً بدون ما نستنى السيرفر (عرض تفاؤلي)
   const optimistic = {
@@ -983,7 +1002,7 @@ document.getElementById('sendBtn').onclick = ()=>{
   const input = document.getElementById('textInput');
   const text = input.value.trim();
   if(!text) return;
-  input.value='';
+    input.value='';
   const payload = {text, type:'text'};
   if(replyingTo){ payload.replyTo = replyingTo; }
   sendMessage(payload);
@@ -1261,7 +1280,7 @@ async function checkTyping(){
 setInterval(checkTyping, 3000);
 
 /* ===== الرسائل الصوتية ===== */
-    let mediaRecorder, audioChunks = [], isRecording = false, recStartTime, recTimerInt;
+let mediaRecorder, audioChunks = [], isRecording = false, recStartTime, recTimerInt;
 const micBtn = document.getElementById('micBtn');
 const waveRow = document.getElementById('waveRow');
 const recTimerEl = document.getElementById('recTimer');
@@ -1318,7 +1337,7 @@ micBtn.onclick = async ()=>{
       };
 
       mediaRecorder.onerror = ()=>{
-        alert('صار خطأ أثناء التسجيل، جرب كمان مرة');
+          alert('صار خطأ أثناء التسجيل، جرب كمان مرة');
         isRecording = false;
         micBtn.classList.remove('recording');
         micBtn.textContent = '🎤';
@@ -1570,6 +1589,70 @@ document.getElementById('schedBtn').onclick = async ()=>{
     alert('انجدولت ⏰ رح تنبعت ' + d.toLocaleString('ar-EG'));
   }catch(e){ alert('صار خطأ بالجدولة، جرب كمان مرة'); }
 };
+
+/* ===== بوابة سَما واللعبة التمويهية ===== */
+(function(){
+  const gate = document.getElementById('gateScreen');
+  const game = document.getElementById('gameScreen');
+
+  // نجوم متلألئة بشاشة البوابة
+  const gs = document.getElementById('gateStars');
+  for(let i=0;i<35;i++){
+    const s=document.createElement('span');
+    s.style.cssText = `position:absolute;background:#fff;border-radius:50%;animation:twinkle 3s infinite ease-in-out;width:2px;height:2px;left:${Math.random()*100}%;top:${Math.random()*100}%;animation-delay:${Math.random()*3}s;`;
+    gs.appendChild(s);
+  }
+
+  // "النجوم" = المحادثة
+  document.getElementById('gateStarsBtn').onclick = ()=>{
+    gate.style.display='none';
+    game.style.display='none';
+  };
+
+  // "القمر" = اللعبة
+  document.getElementById('gameBack').onclick = ()=>{
+    game.style.display='none';
+    gate.style.display='flex';
+    stopGame();
+  };
+
+  let score=0, gameInt=null;
+  const scoreEl = document.getElementById('gameScore');
+
+  function spawnStar(){
+    const st=document.createElement('div');
+    st.textContent='⭐';
+    const size=26+Math.random()*22;
+    st.style.cssText=`position:absolute;font-size:${size}px;left:${5+Math.random()*85}%;top:${15+Math.random()*70}%;cursor:pointer;z-index:4;transition:transform .15s;user-select:none;`;
+    st.onclick=(e)=>{
+      e.stopPropagation();
+      score++;
+      scoreEl.textContent=score;
+      st.style.transform='scale(1.6)';
+      st.style.opacity='0';
+      setTimeout(()=>st.remove(),150);
+    };
+    game.appendChild(st);
+    setTimeout(()=>{ if(st.parentNode) st.remove(); }, 1400+Math.random()*900);
+  }
+
+  function startGame(){
+    score=0; scoreEl.textContent='0';
+    gameInt=setInterval(spawnStar, 650);
+  }
+  function stopGame(){
+    clearInterval(gameInt);
+    game.querySelectorAll('div, span').forEach(el=>{
+      if(el.textContent==='⭐') el.remove();
+    });
+  }
+
+  document.getElementById('gateMoon').onclick = ()=>{
+    gate.style.display='none';
+    game.style.display='block';
+    startGame();
+  };
+})();
 </script>
 </body>
 </html>
