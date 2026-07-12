@@ -9,6 +9,7 @@ self.addEventListener('push', (event) => {
       lang: 'ar',
       vibrate: [100, 50, 100],
       tag: 'sama-new',
+      renotify: true,
     })
   );
 });
