@@ -358,7 +358,7 @@
   }
   .bubble.sos-bubble{
     background:linear-gradient(135deg,#c0555a,#8a2f35) !important;
-      animation:sosPulse 1.2s ease 3;
+    animation:sosPulse 1.2s ease 3;
   }
   @keyframes sosPulse{0%,100%{box-shadow:0 0 0 0 rgba(192,85,90,.6);}50%{box-shadow:0 0 0 14px rgba(192,85,90,0);}}
 
@@ -370,7 +370,7 @@
   /* ===== Typing indicator ===== */
   .typing-row{
     text-align:center;font-size:12px;color:var(--muted);
-    padding:4px 0;font-style:italic;min-height:18px;
+      padding:4px 0;font-style:italic;min-height:18px;
   }
 
   /* ===== Reactions ===== */
@@ -718,7 +718,7 @@ function showReactPopup(x, y, msg){
   if(msg.from === ME && !msg.deleted){
     const editSpan = document.createElement('span');
     editSpan.textContent = '✏️';
-      editSpan.title = 'تعديل';
+    editSpan.title = 'تعديل';
     editSpan.onclick = async ()=>{
       popup.remove();
       if(msg.type !== 'text'){ alert('بس الرسائل النصية ممكن نعدلها'); return; }
@@ -742,7 +742,7 @@ function showReactPopup(x, y, msg){
       if(!confirm('متأكد بدك تحذف الرسالة؟')) return;
       await fetch(`${FN}/editDelete`, {
         method:'POST',
-        headers:{'Content-Type':'application/json'},
+          headers:{'Content-Type':'application/json'},
         body: JSON.stringify({action:'delete', messageId: msg.id, from: ME})
       });
       lastCount = -1;
@@ -960,7 +960,7 @@ async function checkSeen(){
     updateSeenTag();
   }catch(e){}
 }
-setInterval(checkSeen, 5000); // قراءة، رخيصة (100 ألف/يوم)
+setInterval(checkSeen, 20000); // احتياطي بس — الشوفها اللحظية صارت عبر WebSocket
 
 let lastMarkSeen = 0;
 async function markSeen(){
@@ -1078,7 +1078,7 @@ function setReply(msg){
   replyingTo = {
     id: msg.id,
     from: msg.from,
-      snippet: msg.type==='sticker' ? '🎨 ستيكر' : msg.type==='voice' ? '🎤 رسالة صوتية' : msg.type==='media' ? '📷 وسائط' : (msg.text || '').slice(0,60)
+    snippet: msg.type==='sticker' ? '🎨 ستيكر' : msg.type==='voice' ? '🎤 رسالة صوتية' : msg.type==='media' ? '📷 وسائط' : (msg.text || '').slice(0,60)
   };
   const senderName = msg.from==='eyad' ? 'إياد' : 'حلا';
   document.getElementById('replyPreviewText').textContent = 'رد على ' + senderName + ': ' + replyingTo.snippet;
@@ -1114,7 +1114,7 @@ window.addEventListener('mouseup', end);
 canvas.addEventListener('touchstart', start);
 canvas.addEventListener('touchmove', move);
 canvas.addEventListener('touchend', end);
-
+  
 document.querySelectorAll('.swatch').forEach(sw=>{
   sw.onclick = ()=>{
     document.querySelectorAll('.swatch').forEach(s=>s.classList.remove('active'));
@@ -1214,6 +1214,81 @@ setWho(ME);
 loadMessages();
 poller = setInterval(loadMessages, 2500);
 
+/* ===== الاتصال اللحظي (WebSocket) ===== */
+let ws = null;
+let wsConnected = false;
+
+function connectWS(){
+  try{
+    const proto = location.protocol === 'https:' ? 'wss://' : 'ws://';
+    ws = new WebSocket(proto + location.host + '/api/ws?who=' + ME);
+
+    ws.onopen = ()=>{
+      wsConnected = true;
+      statusDot.classList.remove('off');
+      // مع الاتصال اللحظي، الفحص الدوري بيصير احتياطي بس (كل 15 ثانية)
+      clearInterval(poller);
+      poller = setInterval(loadMessages, 15000);
+      sendSeenWS();
+    };
+
+    ws.onmessage = (ev)=>{
+      try{
+        const d = JSON.parse(ev.data);
+        if(d.t === 'msg' && d.m){
+          // رسالة جديدة وصلت لحظياً
+          if(!localMessages.some(m=>m.id === d.m.id)){
+            localMessages = localMessages.filter(m=>!String(m.id).startsWith('pending-') || m.from !== d.m.from || m.text !== d.m.text);
+            localMessages.push(d.m);
+            lastSnapshot = JSON.stringify(localMessages);
+            lastCount = localMessages.length;
+            render(localMessages);
+            saveCache(localMessages);
+            sendSeenWS();
+          }
+        } else if(d.t === 'react' && d.messageId){
+          const msg = localMessages.find(m=>m.id === d.messageId);
+          if(msg){ msg.reaction = d.emoji; msg.reactionBy = d.from; render(localMessages); saveCache(localMessages); }
+        } else if(d.t === 'update' && d.m){
+          const idx = localMessages.findIndex(m=>m.id === d.m.id);
+          if(idx !== -1){ localMessages[idx] = d.m; render(localMessages); saveCache(localMessages); }
+        } else if(d.t === 'typing' && d.from && d.from !== ME){
+          const row = document.getElementById('typingRow');
+          row.textContent = (d.from === 'eyad' ? 'إياد' : 'حلا') + ' عم يكتب...';
+          clearTimeout(window._typingClear);
+          window._typingClear = setTimeout(()=>{ row.textContent=''; }, 3000);
+        } else if(d.t === 'seen' && d.who && d.who !== ME){
+          seenData[d.who] = d.ts || Date.now();
+          updateSeenTag();
+        }
+      }catch(e){}
+    };
+
+    ws.onclose = ()=>{
+      wsConnected = false;
+      // نرجع للفحص السريع كاحتياط ونعيد المحاولة
+      clearInterval(poller);
+      poller = setInterval(loadMessages, 2500);
+      setTimeout(connectWS, 2000 + Math.random()*2000);
+    };
+    ws.onerror = ()=>{ try{ ws.close(); }catch(e){} };
+  }catch(e){
+    setTimeout(connectWS, 4000);
+  }
+}
+connectWS();
+
+function sendTypingWS(){
+  if(wsConnected && ws && ws.readyState === 1){
+    try{ ws.send(JSON.stringify({t:'typing', from: ME})); }catch(e){}
+  }
+}
+function sendSeenWS(){
+  if(wsConnected && ws && ws.readyState === 1){
+    try{ ws.send(JSON.stringify({t:'seen', who: ME, ts: Date.now()})); }catch(e){}
+  }
+}
+
 // لما المستخدم يرجع للتطبيق بعد ما كان مسكر/بالخلفية، نحدث فوراً
 document.addEventListener('visibilitychange', ()=>{
   if(document.visibilityState === 'visible'){
@@ -1312,33 +1387,16 @@ document.addEventListener('click', (e)=>{
 });
 applyTheme(localStorage.getItem('eh_theme') || 'purple');
 
-/* ===== مؤشر الكتابة ===== */
+/* ===== مؤشر الكتابة (عبر WebSocket لحظياً) ===== */
 let lastTypingPing = 0;
 document.getElementById('textInput').addEventListener('input', ()=>{
   const now = Date.now();
-  if(now - lastTypingPing < 8000) return; // نبعت إشارة كتابة بحد أقصى كل 8 ثواني (حماية لحد الكتابة اليومي)
+  if(now - lastTypingPing < 1500) return;
   lastTypingPing = now;
-  fetch(`${FN}/typing`, {
-    method:'POST',
-    headers:{'Content-Type':'application/json'},
-    body: JSON.stringify({from: ME})
-  }).catch(()=>{});
+  sendTypingWS();
 });
 
-async function checkTyping(){
-  if(document.visibilityState !== 'visible') return;
-  try{
-    const res = await fetch(`${FN}/typing`);
-    const status = await res.json();
-    const row = document.getElementById('typingRow');
-    if(status && status.from && status.from !== ME && (Date.now() - status.ts) < 3500){
-      row.textContent = (status.from === 'eyad' ? 'إياد' : 'حلا') + ' عم يكتب...';
-    } else {
-      row.textContent = '';
-    }
-  }catch(e){}
-}
-setInterval(checkTyping, 3000);
+async function checkTyping(){ /* صار عبر WebSocket */ }
 
 /* ===== الرسائل الصوتية ===== */
 let mediaRecorder, audioChunks = [], isRecording = false, recStartTime, recTimerInt;
@@ -1428,7 +1486,7 @@ micBtn.onclick = async ()=>{
     }
   } else {
     mediaRecorder.stop();
-    isRecording = false;
+      isRecording = false;
     micBtn.classList.remove('recording');
     micBtn.textContent = '🎤';
   }
@@ -1438,7 +1496,7 @@ micBtn.onclick = async ()=>{
 const searchBtn = document.getElementById('searchBtn');
 const searchBar = document.getElementById('searchBar');
 const searchInput = document.getElementById('searchInput');
-  const searchCount = document.getElementById('searchCount');
+const searchCount = document.getElementById('searchCount');
 let searchMatches = [];
 let searchIdx = -1;
 
@@ -1749,14 +1807,13 @@ document.getElementById('schedConfirm').onclick = async ()=>{
   };
 })();
 /* ===== شو الجديد (يظهر مرة وحدة لكل تحديث) ===== */
-const APP_VERSION = '2026-07-12-a';
+const APP_VERSION = '2026-07-12-b';
 const CHANGELOG = [
-  '💾 المحادثة صارت محفوظة دايماً — حتى لو انقطع النت بتفتح وتشوف كل شي',
-  '📍 التطبيق بيفتح على آخر رسالة مباشرة بدون ما ترجع تنزّل',
-  '🔊 صوت إشعار ناعم + اهتزاز لما توصل رسالة جديدة',
-  '📅 جدولة الرسائل صارت بتقويم ومنتقي ساعة (بدون كتابة تواريخ)',
-  '🔔 الإشعارات رجعت تشتغل — فعّلها من الزر فوق',
-  '🌙 بوابة "سَما" التمويهية مع لعبة التقاط النجوم',
+  '⚡ الرسائل صارت توصل لحظياً بأجزاء من الثانية — تقنية اتصال دائم زي واتساب',
+  '✍️ "عم يكتب..." وعلامة الشوفها صاروا لحظيين',
+  '🖼️ الصور والصوتيات صارت أخف وأسرع بالتحميل',
+  '💾 المحادثة محفوظة دايماً — حتى بدون نت',
+  '🔊 صوت إشعار ناعم لما توصل رسالة',
 ];
 
 (function showWhatsNew(){
