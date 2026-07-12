@@ -370,7 +370,7 @@
   /* ===== Typing indicator ===== */
   .typing-row{
     text-align:center;font-size:12px;color:var(--muted);
-      padding:4px 0;font-style:italic;min-height:18px;
+    padding:4px 0;font-style:italic;min-height:18px;
   }
 
   /* ===== Reactions ===== */
@@ -393,7 +393,7 @@
 
   /* ===== Voice recording ===== */
   .mic-btn.recording{
-    background:#c0555a;animation:pulse 1s infinite;
+      background:#c0555a;animation:pulse 1s infinite;
   }
   @keyframes pulse{0%,100%{opacity:1;}50%{opacity:.5;}}
   .voice-bubble{display:flex;align-items:center;gap:8px;min-width:160px;}
@@ -727,7 +727,7 @@ function showReactPopup(x, y, msg){
       await fetch(`${FN}/editDelete`, {
         method:'POST',
         headers:{'Content-Type':'application/json'},
-        body: JSON.stringify({action:'edit', messageId: msg.id, from: ME, newText})
+        body: JSON.stringify({action:'edit', messageId: msg.id, from: ME, newText: await encryptText(newText)})
       });
       lastCount = -1;
       loadMessages();
@@ -742,7 +742,7 @@ function showReactPopup(x, y, msg){
       if(!confirm('متأكد بدك تحذف الرسالة؟')) return;
       await fetch(`${FN}/editDelete`, {
         method:'POST',
-          headers:{'Content-Type':'application/json'},
+        headers:{'Content-Type':'application/json'},
         body: JSON.stringify({action:'delete', messageId: msg.id, from: ME})
       });
       lastCount = -1;
@@ -788,7 +788,7 @@ function render(list){
       q.className = 'quote-block';
       const qName = m.replyTo.from === 'eyad' ? 'إياد' : 'حلا';
       q.textContent = qName + ': ' + m.replyTo.snippet;
-      bubble.appendChild(q);
+        bubble.appendChild(q);
     }
 
     if(m.deleted){
@@ -858,7 +858,7 @@ function render(list){
 
     const meta = document.createElement('div');
     meta.className = 'meta';
-    meta.textContent = (m.edited ? 'معدّلة · ' : '') + fmtTime(m.timestamp);
+    meta.textContent = (m.failed ? '🕓 بانتظار الإرسال · ' : '') + (m.edited ? 'معدّلة · ' : '') + fmtTime(m.timestamp);
     bubble.appendChild(meta);
 
     if(m.reaction){
@@ -1007,8 +1007,9 @@ async function loadMessages(){
   try{
     const res = await fetch(`${FN}/messages`);
     if(!res.ok) throw new Error('bad');
-    const list = await res.json();
+    let list = await res.json();
     statusDot.classList.remove('off');
+    list = await decryptList(list);
     const snap = JSON.stringify(list);
     if(snap !== lastSnapshot){
       lastSnapshot = snap;
@@ -1024,10 +1025,80 @@ async function loadMessages(){
 
 let localMessages = [];
 
+/* ===== التشفير من طرف لطرف (E2E) =====
+   الرسائل بتتشفر بمفتاح سري بينكم قبل ما تطلع من الجهاز.
+   السيرفر بيخزن نص مشفر ما بينقرا بدون المفتاح. */
+let cryptoKey = null;
+
+async function deriveKey(passphrase){
+  const enc = new TextEncoder();
+  const material = await crypto.subtle.importKey('raw', enc.encode(passphrase), 'PBKDF2', false, ['deriveKey']);
+  return crypto.subtle.deriveKey(
+    { name:'PBKDF2', salt: enc.encode('sama-gaza-nablus-2026'), iterations: 150000, hash:'SHA-256' },
+    material,
+    { name:'AES-GCM', length:256 },
+    false,
+    ['encrypt','decrypt']
+  );
+}
+
+async function initCrypto(){
+  let pass = localStorage.getItem('eh_secret');
+  if(!pass){
+    pass = prompt('🔐 أول مرة: اتفقوا على كلمة سر وحدة (نفسها بالظبط عند الاثنين) — بتنحفظ بجهازك وما بتنعاد:');
+    if(!pass || !pass.trim()){
+      alert('بدون كلمة سر، الرسائل الجديدة ما رح تتشفر. تقدر تفعلها لاحقاً من إعادة فتح التطبيق.');
+      return;
+    }
+    localStorage.setItem('eh_secret', pass.trim());
+  }
+  try{ cryptoKey = await deriveKey(pass.trim()); }catch(e){ cryptoKey = null; }
+}
+
+function bufToB64(buf){
+  let s=''; new Uint8Array(buf).forEach(b=>s+=String.fromCharCode(b));
+  return btoa(s);
+}
+function b64ToBuf(b64){
+  const bin = atob(b64);
+  const arr = new Uint8Array(bin.length);
+  for(let i=0;i<bin.length;i++) arr[i]=bin.charCodeAt(i);
+  return arr.buffer;
+}
+
+async function encryptText(text){
+  if(!cryptoKey || !text) return text;
+  try{
+    const iv = crypto.getRandomValues(new Uint8Array(12));
+    const ct = await crypto.subtle.encrypt({name:'AES-GCM', iv}, cryptoKey, new TextEncoder().encode(text));
+    return 'enc1:' + bufToB64(iv) + ':' + bufToB64(ct);
+  }catch(e){ return text; }
+}
+
+async function decryptText(text){
+  if(!text || typeof text !== 'string' || !text.startsWith('enc1:')) return text;
+  if(!cryptoKey) return '🔒 رسالة مشفرة (كلمة السر ناقصة)';
+  try{
+    const [, ivB64, ctB64] = text.split(':');
+    const pt = await crypto.subtle.decrypt({name:'AES-GCM', iv: new Uint8Array(b64ToBuf(ivB64))}, cryptoKey, b64ToBuf(ctB64));
+    return new TextDecoder().decode(pt);
+  }catch(e){ return '🔒 رسالة مشفرة (كلمة السر غلط؟)'; }
+}
+
+async function decryptList(list){
+  return Promise.all(list.map(async m=>{
+    if(m._dec) return m;
+    const copy = {...m};
+    copy.text = await decryptText(m.text);
+    copy._dec = true;
+    return copy;
+  }));
+}
+
 async function sendMessage(payload){
   // نعرض الرسالة فوراً بدون ما نستنى السيرفر (عرض تفاؤلي)
   const optimistic = {
-    id: 'pending-' + Date.now(),
+    id: 'pending-' + Date.now() + '-' + Math.random().toString(36).slice(2,6),
     from: ME,
     text: payload.text || '',
     image: payload.type === 'sticker' ? payload.image : null,
@@ -1037,26 +1108,59 @@ async function sendMessage(payload){
     replyTo: payload.replyTo || null,
     sos: payload.sos || false,
     type: payload.type || 'text',
+    pendingSend: true,
     timestamp: Date.now()
   };
   localMessages.push(optimistic);
   render(localMessages);
 
+  // منشفر النص قبل ما يطلع من الجهاز
+  const wirePayload = {...payload};
+  if(wirePayload.text) wirePayload.text = await encryptText(wirePayload.text);
+
+  const ok = await trySend(wirePayload);
+  if(ok){
+    localMessages = localMessages.filter(m => m.id !== optimistic.id);
+    lastCount = -1;
+    loadMessages();
+  } else {
+    // ما منحذفها — منعلمها "بانتظار الإرسال" ومنعيد المحاولة تلقائياً
+    optimistic.failed = true;
+    render(localMessages);
+    queueRetry(optimistic.id, wirePayload);
+  }
+}
+
+async function trySend(payload){
   try{
     const res = await fetch(`${FN}/send`, {
       method:'POST',
       headers:{'Content-Type':'application/json'},
       body: JSON.stringify({from: ME, ...payload})
     });
-    if(!res.ok) throw new Error('failed');
+    return res.ok;
+  }catch(e){ return false; }
+}
+
+/* طابور إعادة الإرسال التلقائية */
+const retryQueue = [];
+function queueRetry(pendingId, payload){
+  retryQueue.push({pendingId, payload});
+}
+async function processRetryQueue(){
+  if(!retryQueue.length || !navigator.onLine) return;
+  const item = retryQueue[0];
+  const ok = await trySend(item.payload);
+  if(ok){
+    retryQueue.shift();
+    localMessages = localMessages.filter(m => m.id !== item.pendingId);
     lastCount = -1;
     loadMessages();
-  } catch(e){
-    alert('ما انبعتت الرسالة، جرب كمان مرة 🤍');
-    localMessages = localMessages.filter(m => m.id !== optimistic.id);
-    render(localMessages);
+    if(retryQueue.length) processRetryQueue();
   }
 }
+setInterval(processRetryQueue, 4000);
+window.addEventListener('online', processRetryQueue);
 
 document.getElementById('sendBtn').onclick = ()=>{
   const input = document.getElementById('textInput');
@@ -1079,7 +1183,7 @@ function setReply(msg){
     id: msg.id,
     from: msg.from,
     snippet: msg.type==='sticker' ? '🎨 ستيكر' : msg.type==='voice' ? '🎤 رسالة صوتية' : msg.type==='media' ? '📷 وسائط' : (msg.text || '').slice(0,60)
-  };
+    };
   const senderName = msg.from==='eyad' ? 'إياد' : 'حلا';
   document.getElementById('replyPreviewText').textContent = 'رد على ' + senderName + ': ' + replyingTo.snippet;
   document.getElementById('replyPreview').style.display = 'flex';
@@ -1114,7 +1218,7 @@ window.addEventListener('mouseup', end);
 canvas.addEventListener('touchstart', start);
 canvas.addEventListener('touchmove', move);
 canvas.addEventListener('touchend', end);
-  
+
 document.querySelectorAll('.swatch').forEach(sw=>{
   sw.onclick = ()=>{
     document.querySelectorAll('.swatch').forEach(s=>s.classList.remove('active'));
@@ -1144,16 +1248,44 @@ let uploadedIsVideo = false;
 const dropZone = document.getElementById('dropZone');
 const fileInput = document.getElementById('fileInput');
 dropZone.onclick = ()=>fileInput.click();
+
+/* ضغط الصورة بالمتصفح: تصغير الأبعاد + جودة 80% = حجم أقل بكتير وإرسال أسرع */
+function compressImage(dataUrl, maxDim = 1280, quality = 0.8){
+  return new Promise((resolve)=>{
+    const img = new Image();
+    img.onload = ()=>{
+      let w = img.width, h = img.height;
+      if(w <= maxDim && h <= maxDim && dataUrl.length < 500000){ resolve(dataUrl); return; }
+      const scale = Math.min(maxDim/w, maxDim/h, 1);
+      w = Math.round(w*scale); h = Math.round(h*scale);
+      const c = document.createElement('canvas');
+      c.width = w; c.height = h;
+      c.getContext('2d').drawImage(img, 0, 0, w, h);
+      resolve(c.toDataURL('image/jpeg', quality));
+    };
+    img.onerror = ()=>resolve(dataUrl);
+    img.src = dataUrl;
+  });
+}
+
 fileInput.onchange = ()=>{
   const file = fileInput.files[0];
   if(!file) return;
   uploadedIsVideo = file.type.startsWith('video/');
+  if(uploadedIsVideo && file.size > 8*1024*1024){
+    alert('الفيديو كبير (أكثر من 8 ميجا) — اختار فيديو أقصر أو اضغطه من الاستوديو أول 🎥');
+    fileInput.value = '';
+    return;
+  }
   const reader = new FileReader();
-  reader.onload = ()=>{
-    uploadedImage = reader.result;
-    document.getElementById('preview').innerHTML = uploadedIsVideo
-      ? `<video src="${uploadedImage}" controls style="max-width:100%;max-height:200px;border-radius:10px;margin-top:10px;"></video>`
-      : `<img src="${uploadedImage}">`;
+  reader.onload = async ()=>{
+    if(uploadedIsVideo){
+      uploadedImage = reader.result;
+      document.getElementById('preview').innerHTML = `<video src="${uploadedImage}" controls style="max-width:100%;max-height:200px;border-radius:10px;margin-top:10px;"></video>`;
+    } else {
+      uploadedImage = await compressImage(reader.result);
+      document.getElementById('preview').innerHTML = `<img src="${uploadedImage}">`;
+    }
   };
   reader.readAsDataURL(file);
 };
@@ -1210,8 +1342,10 @@ try{
   }
 }catch(e){}
 
-setWho(ME);
-loadMessages();
+initCrypto().then(()=>{
+  setWho(ME);
+  loadMessages();
+});
 poller = setInterval(loadMessages, 2500);
 
 /* ===== الاتصال اللحظي (WebSocket) ===== */
@@ -1236,22 +1370,31 @@ function connectWS(){
       try{
         const d = JSON.parse(ev.data);
         if(d.t === 'msg' && d.m){
-          // رسالة جديدة وصلت لحظياً
+          // رسالة جديدة وصلت لحظياً — منفك تشفيرها ومنعرضها
           if(!localMessages.some(m=>m.id === d.m.id)){
-            localMessages = localMessages.filter(m=>!String(m.id).startsWith('pending-') || m.from !== d.m.from || m.text !== d.m.text);
-            localMessages.push(d.m);
-            lastSnapshot = JSON.stringify(localMessages);
-            lastCount = localMessages.length;
-            render(localMessages);
-            saveCache(localMessages);
-            sendSeenWS();
+            decryptText(d.m.text).then(plain=>{
+              d.m.text = plain;
+              d.m._dec = true;
+              if(localMessages.some(m=>m.id === d.m.id)) return;
+              localMessages = localMessages.filter(m=>!String(m.id).startsWith('pending-') || m.from !== d.m.from);
+              localMessages.push(d.m);
+              lastSnapshot = JSON.stringify(localMessages);
+              lastCount = localMessages.length;
+              render(localMessages);
+              saveCache(localMessages);
+              sendSeenWS();
+            });
           }
         } else if(d.t === 'react' && d.messageId){
           const msg = localMessages.find(m=>m.id === d.messageId);
           if(msg){ msg.reaction = d.emoji; msg.reactionBy = d.from; render(localMessages); saveCache(localMessages); }
         } else if(d.t === 'update' && d.m){
-          const idx = localMessages.findIndex(m=>m.id === d.m.id);
-          if(idx !== -1){ localMessages[idx] = d.m; render(localMessages); saveCache(localMessages); }
+          decryptText(d.m.text).then(plain=>{
+            d.m.text = plain;
+            d.m._dec = true;
+            const idx = localMessages.findIndex(m=>m.id === d.m.id);
+            if(idx !== -1){ localMessages[idx] = d.m; render(localMessages); saveCache(localMessages); }
+          });
         } else if(d.t === 'typing' && d.from && d.from !== ME){
           const row = document.getElementById('typingRow');
           row.textContent = (d.from === 'eyad' ? 'إياد' : 'حلا') + ' عم يكتب...';
@@ -1297,6 +1440,11 @@ document.addEventListener('visibilitychange', ()=>{
     markSeen();
   }
 });
+
+/* تسجيل Service Worker فوراً (للفتح بدون نت + الإشعارات) */
+if('serviceWorker' in navigator){
+  navigator.serviceWorker.register('/sw.js').catch(()=>{});
+}
 
 /* ===== الإشعارات (Push Notifications) ===== */
 const VAPID_PUBLIC_KEY = 'BFjNF8HRXnpw4m5RBru6srtVahFtd80QSqG9ydMxguyHWmVutzPeVnE37hQorhyH6E8MCyYs9lqMC1Tmt9olUaU';
@@ -1430,7 +1578,7 @@ micBtn.onclick = async ()=>{
       const mimeType = pickMimeType();
       mediaRecorder = mimeType ? new MediaRecorder(stream, { mimeType }) : new MediaRecorder(stream);
       audioChunks = [];
-
+  
       mediaRecorder.ondataavailable = (e)=>{ if(e.data && e.data.size > 0) audioChunks.push(e.data); };
 
       mediaRecorder.onstop = ()=>{
@@ -1486,7 +1634,7 @@ micBtn.onclick = async ()=>{
     }
   } else {
     mediaRecorder.stop();
-      isRecording = false;
+    isRecording = false;
     micBtn.classList.remove('recording');
     micBtn.textContent = '🎤';
   }
@@ -1807,13 +1955,13 @@ document.getElementById('schedConfirm').onclick = async ()=>{
   };
 })();
 /* ===== شو الجديد (يظهر مرة وحدة لكل تحديث) ===== */
-const APP_VERSION = '2026-07-12-b';
+const APP_VERSION = '2026-07-12-c';
 const CHANGELOG = [
-  '⚡ الرسائل صارت توصل لحظياً بأجزاء من الثانية — تقنية اتصال دائم زي واتساب',
-  '✍️ "عم يكتب..." وعلامة الشوفها صاروا لحظيين',
-  '🖼️ الصور والصوتيات صارت أخف وأسرع بالتحميل',
-  '💾 المحادثة محفوظة دايماً — حتى بدون نت',
-  '🔊 صوت إشعار ناعم لما توصل رسالة',
+  '🔐 تشفير من طرف لطرف — رسايلكم صارت مشفرة بكلمة سر بينكم بس، حتى السيرفر ما بيقدر يقراها',
+  '📴 التطبيق بيفتح كامل بدون نت (أضيفوه لشاشة الجوال الرئيسية)',
+  '🖼️ الصور بتنضغط تلقائياً قبل الإرسال — أسرع بكتير وبتوفر مساحة',
+  '🕓 الرسالة يلي بتفشل ما بتضيع — بتتعلم "بانتظار الإرسال" وبتنبعت لحالها أول ما يرجع النت',
+  '⚡ الرسائل بتوصل لحظياً بأجزاء من الثانية',
 ];
 
 (function showWhatsNew(){
