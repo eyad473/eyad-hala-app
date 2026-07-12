@@ -194,11 +194,14 @@
     -webkit-backdrop-filter:blur(16px);
     border:1px solid rgba(255,255,255,0.1);
     border-radius:24px;
-    padding:6px 6px 6px 14px;
+    padding:6px 6px 6px 10px;
     display:flex;
     align-items:center;
-    gap:8px;
+    gap:4px;
+    flex-wrap:nowrap;
+    position:relative;
   }
+  .composer input[type=text]{min-width:0;}
   .composer input[type=text]{
     flex:1;
     background:transparent;
@@ -306,7 +309,8 @@
   }
   .bubble:hover .copy-btn{display:flex;}
   .char-counter{
-    font-size:10px;color:var(--muted);padding:0 8px;white-space:nowrap;
+    position:absolute;top:-18px;left:14px;
+    font-size:10px;color:var(--muted);white-space:nowrap;
   }
 
   /* ===== نجوم الليل ===== */
@@ -331,7 +335,8 @@
     width:5px;height:5px;border-radius:50%;background:var(--rose);
   }
   .distance-row.flash .pulse-dot{animation:distFlash 1s ease;}
-  @keyframes distFlash{0%{box-shadow:0 0 0 0 rgba(227,175,174,.8);}100%{box-shadow:0 0 0 12px rgba(227,175,174,0);}}
+    @keyframes distFlash{0%{box-shadow:0 0 0 0 rgba(227,175,174,.8);}100%{box-shadow:0 0 0 12px rgba(227,175,174,0);}}
+
   /* ===== الاحتفال (قلوب متطايرة) ===== */
   .float-heart{
     position:fixed;bottom:-40px;font-size:24px;z-index:99;
@@ -575,6 +580,21 @@
 </div>
 
 <footer>
+  <!-- نافذة جدولة الرسالة -->
+  <div id="schedModal" style="display:none;position:fixed;inset:0;z-index:150;background:rgba(0,0,0,.6);backdrop-filter:blur(4px);align-items:center;justify-content:center;">
+    <div style="background:var(--bg-card);border:1px solid #4a2f52;border-radius:20px;padding:20px;width:88%;max-width:360px;font-family:'Tajawal',sans-serif;">
+      <div style="color:var(--cream);font-size:16px;margin-bottom:14px;">⏰ جدولة رسالة</div>
+      <input type="text" id="schedText" placeholder="اكتب الرسالة..." style="width:100%;background:var(--bg-card-2);border:1px solid #4a2f52;border-radius:12px;padding:10px 12px;color:var(--cream);font-family:'Tajawal',sans-serif;font-size:14px;outline:none;margin-bottom:12px;box-sizing:border-box;">
+      <label style="color:var(--muted);font-size:12px;display:block;margin-bottom:4px;">اختار اليوم:</label>
+      <input type="date" id="schedDate" style="width:100%;background:var(--bg-card-2);border:1px solid #4a2f52;border-radius:12px;padding:10px 12px;color:var(--cream);font-family:'Tajawal',sans-serif;font-size:14px;outline:none;margin-bottom:12px;box-sizing:border-box;">
+      <label style="color:var(--muted);font-size:12px;display:block;margin-bottom:4px;">اختار الساعة:</label>
+      <input type="time" id="schedTime" style="width:100%;background:var(--bg-card-2);border:1px solid #4a2f52;border-radius:12px;padding:10px 12px;color:var(--cream);font-family:'Tajawal',sans-serif;font-size:14px;outline:none;margin-bottom:16px;box-sizing:border-box;">
+      <div style="display:flex;gap:10px;justify-content:flex-end;">
+        <button id="schedCancel" style="background:transparent;border:1px solid #4a2f52;color:var(--muted);padding:8px 18px;border-radius:12px;font-family:'Tajawal',sans-serif;cursor:pointer;">إلغاء</button>
+        <button id="schedConfirm" style="background:var(--gold);border:none;color:#1E1224;padding:8px 22px;border-radius:12px;font-family:'Tajawal',sans-serif;font-weight:700;cursor:pointer;">جدولة ⏰</button>
+      </div>
+    </div>
+  </div>
   <div class="reply-preview" id="replyPreview" style="display:none;">
     <div class="txt" id="replyPreviewText"></div>
     <button id="cancelReply">✕</button>
@@ -652,7 +672,7 @@ btnHala.onclick = ()=>setWho('hala');
 function fmtTime(ts){
   const d = new Date(ts);
   return d.toLocaleTimeString('ar', {hour:'2-digit', minute:'2-digit'});
-}
+  }
 
 function showReactPopup(x, y, msg){
   document.querySelectorAll('.react-popup').forEach(p=>p.remove());
@@ -667,7 +687,7 @@ function showReactPopup(x, y, msg){
     span.onclick = async (ev)=>{
       ev.stopPropagation();
       popup.remove();
-        try{
+      try{
         const res = await fetch(`${FN}/react`, {
           method:'POST',
           headers:{'Content-Type':'application/json'},
@@ -989,7 +1009,7 @@ async function sendMessage(payload){
       body: JSON.stringify({from: ME, ...payload})
     });
     if(!res.ok) throw new Error('failed');
-    lastCount = -1;
+      lastCount = -1;
     loadMessages();
   } catch(e){
     alert('ما انبعتت الرسالة، جرب كمان مرة 🤍');
@@ -1002,7 +1022,7 @@ document.getElementById('sendBtn').onclick = ()=>{
   const input = document.getElementById('textInput');
   const text = input.value.trim();
   if(!text) return;
-    input.value='';
+  input.value='';
   const payload = {text, type:'text'};
   if(replyingTo){ payload.replyTo = replyingTo; }
   sendMessage(payload);
@@ -1171,10 +1191,6 @@ function urlBase64ToUint8Array(base64String) {
 }
 
 async function enableNotifications(){
-  alert('الإشعارات لسا مش متوفرة على الاستضافة الجديدة، رح نضيفها قريباً 🔔');
-  return;
-}
-async function enableNotificationsOLD_UNUSED(){
   if(!('serviceWorker' in navigator) || !('PushManager' in window)){
     alert('المتصفح ما بيدعم الإشعارات 😔');
     return;
@@ -1330,14 +1346,14 @@ micBtn.onclick = async ()=>{
         }
         const reader = new FileReader();
         reader.onload = ()=>{
-          sendMessage({ type:'voice', audio: reader.result, text:'' });
+            sendMessage({ type:'voice', audio: reader.result, text:'' });
         };
         reader.onerror = ()=> alert('صار خطأ بمعالجة التسجيل، جرب كمان مرة');
         reader.readAsDataURL(blob);
       };
 
       mediaRecorder.onerror = ()=>{
-          alert('صار خطأ أثناء التسجيل، جرب كمان مرة');
+        alert('صار خطأ أثناء التسجيل، جرب كمان مرة');
         isRecording = false;
         micBtn.classList.remove('recording');
         micBtn.textContent = '🎤';
@@ -1564,29 +1580,36 @@ daysEl.onclick = async ()=>{
 loadMeta();
 
 /* ===== جدولة رسالة ===== */
-document.getElementById('schedBtn').onclick = async ()=>{
-  const text = prompt('اكتب الرسالة يلي بدك تنجدول:');
-  if(!text || !text.trim()) return;
-  const when = prompt('بعد قديش تنبعت؟ اكتب عدد الساعات (مثلاً 8) أو وقت محدد بصيغة سنة-شهر-يوم ساعة:دقيقة (مثلاً 2026-07-13 08:00)');
-  if(!when) return;
-  let deliverAt;
-  if(/^\d+(\.\d+)?$/.test(when.trim())){
-    deliverAt = Date.now() + parseFloat(when.trim())*3600*1000;
-  } else {
-    const parsed = new Date(when.trim().replace(' ', 'T'));
-    if(isNaN(parsed.getTime())){ alert('ما فهمت الوقت، جرب كمان مرة'); return; }
-    deliverAt = parsed.getTime();
-  }
-  if(deliverAt <= Date.now()){ alert('الوقت لازم يكون بالمستقبل'); return; }
+const schedModal = document.getElementById('schedModal');
+document.getElementById('schedBtn').onclick = ()=>{
+  // تعبئة افتراضية: بكرة الساعة 8 الصبح
+  const t = new Date(Date.now() + 24*3600*1000);
+  document.getElementById('schedDate').value = t.toISOString().slice(0,10);
+  document.getElementById('schedTime').value = '08:00';
+  document.getElementById('schedText').value = document.getElementById('textInput').value.trim();
+  schedModal.style.display = 'flex';
+};
+document.getElementById('schedCancel').onclick = ()=>{ schedModal.style.display='none'; };
+document.getElementById('schedConfirm').onclick = async ()=>{
+  const text = document.getElementById('schedText').value.trim();
+  const dateV = document.getElementById('schedDate').value;
+  const timeV = document.getElementById('schedTime').value;
+  if(!text){ alert('اكتب الرسالة الأول 🤍'); return; }
+  if(!dateV || !timeV){ alert('اختار اليوم والساعة'); return; }
+  const deliverAt = new Date(dateV + 'T' + timeV).getTime();
+  if(isNaN(deliverAt)){ alert('في مشكلة بالتاريخ، جرب كمان مرة'); return; }
+  if(deliverAt <= Date.now()){ alert('الوقت لازم يكون بالمستقبل ⏰'); return; }
   try{
     const res = await fetch(`${FN}/schedule`, {
       method:'POST',
       headers:{'Content-Type':'application/json'},
-      body: JSON.stringify({from: ME, text: text.trim(), deliverAt})
+      body: JSON.stringify({from: ME, text, deliverAt})
     });
     if(!res.ok) throw new Error('failed');
+    schedModal.style.display='none';
+    document.getElementById('textInput').value='';
     const d = new Date(deliverAt);
-    alert('انجدولت ⏰ رح تنبعت ' + d.toLocaleString('ar-EG'));
+    alert('انجدولت ⏰ رح تنبعت ' + d.toLocaleString('ar-EG', {weekday:'long', day:'numeric', month:'long', hour:'numeric', minute:'2-digit'}));
   }catch(e){ alert('صار خطأ بالجدولة، جرب كمان مرة'); }
 };
 
@@ -1656,5 +1679,3 @@ document.getElementById('schedBtn').onclick = async ()=>{
 </script>
 </body>
 </html>
-
-  
