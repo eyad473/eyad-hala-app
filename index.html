@@ -335,7 +335,7 @@
     width:5px;height:5px;border-radius:50%;background:var(--rose);
   }
   .distance-row.flash .pulse-dot{animation:distFlash 1s ease;}
-    @keyframes distFlash{0%{box-shadow:0 0 0 0 rgba(227,175,174,.8);}100%{box-shadow:0 0 0 12px rgba(227,175,174,0);}}
+  @keyframes distFlash{0%{box-shadow:0 0 0 0 rgba(227,175,174,.8);}100%{box-shadow:0 0 0 12px rgba(227,175,174,0);}}
 
   /* ===== الاحتفال (قلوب متطايرة) ===== */
   .float-heart{
@@ -358,7 +358,7 @@
   }
   .bubble.sos-bubble{
     background:linear-gradient(135deg,#c0555a,#8a2f35) !important;
-    animation:sosPulse 1.2s ease 3;
+      animation:sosPulse 1.2s ease 3;
   }
   @keyframes sosPulse{0%,100%{box-shadow:0 0 0 0 rgba(192,85,90,.6);}50%{box-shadow:0 0 0 14px rgba(192,85,90,0);}}
 
@@ -664,6 +664,8 @@ function setWho(who){
   const nb = document.getElementById('notifBtn');
   if(nb) nb.textContent = localStorage.getItem('eh_notif_' + who) === '1' ? '🔔 الإشعارات مفعّلة ✓' : '🔔 فعّل الإشعارات';
   lastCount = -1;
+  // منعيد عرض المحادثة الموجودة فوراً (اتجاه الفقاعات بيتغير حسب الهوية)
+  if(localMessages.length) render(localMessages);
   loadMessages();
 }
 btnEyad.onclick = ()=>setWho('eyad');
@@ -672,7 +674,7 @@ btnHala.onclick = ()=>setWho('hala');
 function fmtTime(ts){
   const d = new Date(ts);
   return d.toLocaleTimeString('ar', {hour:'2-digit', minute:'2-digit'});
-  }
+}
 
 function showReactPopup(x, y, msg){
   document.querySelectorAll('.react-popup').forEach(p=>p.remove());
@@ -716,7 +718,7 @@ function showReactPopup(x, y, msg){
   if(msg.from === ME && !msg.deleted){
     const editSpan = document.createElement('span');
     editSpan.textContent = '✏️';
-    editSpan.title = 'تعديل';
+      editSpan.title = 'تعديل';
     editSpan.onclick = async ()=>{
       popup.remove();
       if(msg.type !== 'text'){ alert('بس الرسائل النصية ممكن نعدلها'); return; }
@@ -917,8 +919,22 @@ function render(list){
       row.appendChild(seenRow);
     }
   });
-  chatEl.scrollTop = chatEl.scrollHeight;
+  scrollBottom();
+  // الصور والفيديوهات بتاخذ وقت تتحمل وبتغير ارتفاع الصفحة،
+  // فمنعيد التمرير لتحت لما كل وسيطة تخلص تحميل (لو كنا أصلاً قريبين من الآخر)
+  chatEl.querySelectorAll('img, video, audio').forEach(el=>{
+    const fix = ()=>{ if(nearBottom()) scrollBottom(); };
+    el.addEventListener('load', fix, {once:true});
+    el.addEventListener('loadedmetadata', fix, {once:true});
+  });
   updateSeenTag();
+}
+
+function scrollBottom(){
+  chatEl.scrollTop = chatEl.scrollHeight;
+}
+function nearBottom(){
+  return (chatEl.scrollHeight - chatEl.scrollTop - chatEl.clientHeight) < 350;
 }
 
 let lastSnapshot = '';
@@ -962,6 +978,30 @@ async function markSeen(){
 }
 setInterval(markSeen, 25000);
 
+function saveCache(list){
+  // بنحاول نحفظ كل شي، ولو التخزين امتلأ (الصور والصوت بياخذوا مساحة)
+  // منحفظ نسخة مخففة: آخر 150 رسالة، والوسائط الثقيلة بس بآخر 20
+  try{
+    localStorage.setItem('eh_cache_messages', JSON.stringify(list));
+    return;
+  }catch(e){}
+  try{
+    const slim = list.slice(-150).map((m, i, arr)=>{
+      if(i >= arr.length - 20) return m;
+      if(m.image || m.audio || m.media){
+        return {...m, image:null, audio:null, media:null, trimmed:true};
+      }
+      return m;
+    });
+    localStorage.setItem('eh_cache_messages', JSON.stringify(slim));
+    return;
+  }catch(e){}
+  try{
+    const textOnly = list.slice(-120).map(m=>({...m, image:null, audio:null, media:null, trimmed:(m.image||m.audio||m.media)?true:false}));
+    localStorage.setItem('eh_cache_messages', JSON.stringify(textOnly));
+  }catch(e){}
+}
+
 async function loadMessages(){
   if(document.visibilityState !== 'visible') return;
   try{
@@ -975,7 +1015,7 @@ async function loadMessages(){
       lastCount = list.length;
       localMessages = list;
       render(list);
-      try{ localStorage.setItem('eh_cache_messages', snap); }catch(e){}
+      saveCache(list);
     }
   }catch(e){
     statusDot.classList.add('off');
@@ -1009,7 +1049,7 @@ async function sendMessage(payload){
       body: JSON.stringify({from: ME, ...payload})
     });
     if(!res.ok) throw new Error('failed');
-      lastCount = -1;
+    lastCount = -1;
     loadMessages();
   } catch(e){
     alert('ما انبعتت الرسالة، جرب كمان مرة 🤍');
@@ -1038,7 +1078,7 @@ function setReply(msg){
   replyingTo = {
     id: msg.id,
     from: msg.from,
-    snippet: msg.type==='sticker' ? '🎨 ستيكر' : msg.type==='voice' ? '🎤 رسالة صوتية' : msg.type==='media' ? '📷 وسائط' : (msg.text || '').slice(0,60)
+      snippet: msg.type==='sticker' ? '🎨 ستيكر' : msg.type==='voice' ? '🎤 رسالة صوتية' : msg.type==='media' ? '📷 وسائط' : (msg.text || '').slice(0,60)
   };
   const senderName = msg.from==='eyad' ? 'إياد' : 'حلا';
   document.getElementById('replyPreviewText').textContent = 'رد على ' + senderName + ': ' + replyingTo.snippet;
@@ -1154,14 +1194,19 @@ document.getElementById('confirmModal').onclick = ()=>{
 };
 
 // نعرض آخر نسخة محفوظة محلياً فوراً (بدون ما نستنى السيرفر)
+// هيك المحادثة بتظهر حتى لو النت مقطوع تماماً
 try{
   const cached = localStorage.getItem('eh_cache_messages');
   if(cached){
     const cachedList = JSON.parse(cached);
-    localMessages = cachedList;
-    lastSnapshot = cached;
-    lastCount = cachedList.length;
-    render(cachedList);
+    if(Array.isArray(cachedList) && cachedList.length){
+      localMessages = cachedList;
+      lastSnapshot = cached;
+      lastCount = cachedList.length;
+      render(cachedList);
+      // تمريرات إضافية متأخرة لضمان الوصول لآخر رسالة بعد تحميل كل شي
+      [150, 500, 1200, 2500].forEach(t=>setTimeout(scrollBottom, t));
+    }
   }
 }catch(e){}
 
@@ -1346,7 +1391,7 @@ micBtn.onclick = async ()=>{
         }
         const reader = new FileReader();
         reader.onload = ()=>{
-            sendMessage({ type:'voice', audio: reader.result, text:'' });
+          sendMessage({ type:'voice', audio: reader.result, text:'' });
         };
         reader.onerror = ()=> alert('صار خطأ بمعالجة التسجيل، جرب كمان مرة');
         reader.readAsDataURL(blob);
@@ -1393,7 +1438,7 @@ micBtn.onclick = async ()=>{
 const searchBtn = document.getElementById('searchBtn');
 const searchBar = document.getElementById('searchBar');
 const searchInput = document.getElementById('searchInput');
-const searchCount = document.getElementById('searchCount');
+  const searchCount = document.getElementById('searchCount');
 let searchMatches = [];
 let searchIdx = -1;
 
@@ -1494,6 +1539,31 @@ function setupStars(){
 }
 setupStars();
 
+/* ===== نغمة وصول رسالة (داخل التطبيق) ===== */
+let audioCtx = null;
+function playChime(){
+  try{
+    if(!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    if(audioCtx.state === 'suspended') audioCtx.resume();
+    const now = audioCtx.currentTime;
+    // نغمتين ناعمتين متتاليتين (زي جرس خفيف)
+    [[880, 0], [1174.66, 0.12]].forEach(([freq, delay])=>{
+      const osc = audioCtx.createOscillator();
+      const gain = audioCtx.createGain();
+      osc.type = 'sine';
+      osc.frequency.value = freq;
+      gain.gain.setValueAtTime(0, now + delay);
+      gain.gain.linearRampToValueAtTime(0.22, now + delay + 0.02);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + delay + 0.5);
+      osc.connect(gain).connect(audioCtx.destination);
+      osc.start(now + delay);
+      osc.stop(now + delay + 0.55);
+    });
+  }catch(e){}
+}
+// تجهيز الصوت بأول لمسة (متطلب من المتصفحات)
+document.addEventListener('touchstart', ()=>{ if(!audioCtx) playChime && (audioCtx = new (window.AudioContext || window.webkitAudioContext)()); }, {once:true});
+
 /* ===== وميض المسافة عند رسالة جديدة ===== */
 let prevMsgCount = -1;
 const origRender = render;
@@ -1506,6 +1576,8 @@ render = function(list){
     dr.classList.add('flash');
     const newest = list[list.length-1];
     if(newest && newest.from !== ME){
+      playChime();
+      if(navigator.vibrate) navigator.vibrate(80);
       maybeCelebrate(newest);
       if(newest.sos && navigator.vibrate) navigator.vibrate([200,80,200,80,400]);
     }
@@ -1674,6 +1746,41 @@ document.getElementById('schedConfirm').onclick = async ()=>{
     gate.style.display='none';
     game.style.display='block';
     startGame();
+  };
+})();
+/* ===== شو الجديد (يظهر مرة وحدة لكل تحديث) ===== */
+const APP_VERSION = '2026-07-12-a';
+const CHANGELOG = [
+  '💾 المحادثة صارت محفوظة دايماً — حتى لو انقطع النت بتفتح وتشوف كل شي',
+  '📍 التطبيق بيفتح على آخر رسالة مباشرة بدون ما ترجع تنزّل',
+  '🔊 صوت إشعار ناعم + اهتزاز لما توصل رسالة جديدة',
+  '📅 جدولة الرسائل صارت بتقويم ومنتقي ساعة (بدون كتابة تواريخ)',
+  '🔔 الإشعارات رجعت تشتغل — فعّلها من الزر فوق',
+  '🌙 بوابة "سَما" التمويهية مع لعبة التقاط النجوم',
+];
+
+(function showWhatsNew(){
+  try{
+    if(localStorage.getItem('eh_seen_version') === APP_VERSION) return;
+  }catch(e){ return; }
+
+  const overlay = document.createElement('div');
+  overlay.style.cssText = 'position:fixed;inset:0;z-index:300;background:rgba(0,0,0,.65);backdrop-filter:blur(6px);display:flex;align-items:center;justify-content:center;padding:20px;';
+  const box = document.createElement('div');
+  box.style.cssText = "background:var(--bg-card);border:1px solid #4a2f52;border-radius:22px;padding:24px 20px;max-width:380px;width:100%;font-family:'Tajawal',sans-serif;max-height:80vh;overflow-y:auto;";
+  box.innerHTML = `
+    <div style="text-align:center;font-size:34px;margin-bottom:6px;">✨</div>
+    <div style="text-align:center;color:var(--gold);font-family:'Aref Ruqaa',serif;font-size:22px;margin-bottom:4px;">شو الجديد</div>
+    <div style="text-align:center;color:var(--muted);font-size:11px;margin-bottom:16px;">آخر تحديث</div>
+    ${CHANGELOG.map(item=>`<div style="color:var(--cream);font-size:13.5px;line-height:1.7;margin-bottom:10px;padding:10px 12px;background:rgba(255,255,255,0.04);border-radius:12px;">${item}</div>`).join('')}
+    <button id="whatsNewClose" style="display:block;width:100%;margin-top:14px;background:var(--gold);border:none;color:#1E1224;padding:12px;border-radius:14px;font-family:'Tajawal',sans-serif;font-weight:700;font-size:15px;cursor:pointer;">حلو، يلا نبدأ 🤍</button>
+  `;
+  overlay.appendChild(box);
+  document.body.appendChild(overlay);
+
+  document.getElementById('whatsNewClose').onclick = ()=>{
+    overlay.remove();
+    try{ localStorage.setItem('eh_seen_version', APP_VERSION); }catch(e){}
   };
 })();
 </script>
