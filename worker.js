@@ -100,6 +100,9 @@ export default {
       if (path === '/api/seen' && request.method === 'GET') {
         return await getSeen(env);
       }
+      if (path === '/api/giphy' && request.method === 'GET') {
+        return await giphySearch(url, env);
+      }
     } catch (e) {
       return json({ error: e.message }, 500);
     }
@@ -297,6 +300,36 @@ async function getSeen(env) {
   const eyad = eyadRaw ? JSON.parse(eyadRaw).ts : 0;
   const hala = halaRaw ? JSON.parse(halaRaw).ts : 0;
   return json({ eyad, hala });
+}
+
+/* ===== ستيكرز و GIFs — وسيط لـ GIPHY (المفتاح يضل سري بالسيرفر) ===== */
+async function giphySearch(url, env) {
+  if (!env.GIPHY_API_KEY) return json({ error: 'GIPHY not configured', items: [] });
+
+  const type = url.searchParams.get('type') === 'gifs' ? 'gifs' : 'stickers';
+  const q = (url.searchParams.get('q') || '').slice(0, 60);
+  const offset = Math.max(0, parseInt(url.searchParams.get('offset') || '0', 10) || 0);
+
+  const giphyUrl = new URL(`https://api.giphy.com/v1/${type}/${q ? 'search' : 'trending'}`);
+  giphyUrl.searchParams.set('api_key', env.GIPHY_API_KEY);
+  giphyUrl.searchParams.set('limit', '24');
+  giphyUrl.searchParams.set('offset', String(offset));
+  giphyUrl.searchParams.set('rating', 'pg-13');
+  if (q) {
+    giphyUrl.searchParams.set('q', q);
+    giphyUrl.searchParams.set('lang', 'ar');
+  }
+
+  const res = await fetch(giphyUrl.toString());
+  if (!res.ok) return json({ error: 'giphy request failed', items: [] }, 502);
+  const data = await res.json();
+  const items = (data.data || []).map((g) => ({
+    id: g.id,
+    preview: g.images?.fixed_width_small?.url || g.images?.fixed_width?.url || g.images?.original?.url,
+    full: g.images?.original?.url || g.images?.downsized?.url,
+  })).filter((it) => it.preview && it.full);
+
+  return json({ items });
 }
 
 /* ===== الإشعارات (Web Push بدون حمولة) =====

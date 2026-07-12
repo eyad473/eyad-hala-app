@@ -230,6 +230,26 @@
     background:linear-gradient(135deg,var(--gold),#b8863f);
     color:#221327;
   }
+  /* ===== قائمة المزيد (ستيكر مرسوم / صوت / جدولة) ===== */
+  .more-menu{
+    display:none;
+    position:absolute;
+    bottom:64px;right:20px;
+    background:var(--bg-card);border:1px solid #4a2f52;
+    border-radius:16px;padding:6px;
+    flex-direction:column;gap:2px;
+    z-index:45;box-shadow:0 6px 20px rgba(0,0,0,.5);
+    animation:pop .15s ease;
+  }
+  .more-menu.open{display:flex;}
+  .more-menu button{
+    display:flex;align-items:center;gap:8px;
+    background:transparent;border:none;color:var(--cream);
+    font-family:'Tajawal',sans-serif;font-size:14px;
+    padding:9px 14px;border-radius:10px;cursor:pointer;white-space:nowrap;
+  }
+  .more-menu button:hover{background:var(--bg-card-2);}
+  .more-menu button.recording{color:#ff8a8f;}
   .status{
     text-align:center;
     font-size:11px;
@@ -505,6 +525,32 @@
   }
   .btn.cancel{background:var(--bg-card-2);color:var(--muted);}
   .btn.confirm{background:linear-gradient(135deg,var(--rose),#b98486);color:#221327;}
+
+  /* ===== ستيكرز و GIFs (GIPHY) ===== */
+  .giphy-modal{max-height:74vh;display:flex;flex-direction:column;}
+  .giphy-tabs{display:flex;gap:6px;margin-bottom:12px;background:var(--bg-card-2);padding:4px;border-radius:14px;}
+  .giphy-tabs button{
+    flex:1;background:transparent;border:none;color:var(--muted);
+    padding:8px;border-radius:10px;font-family:'Tajawal',sans-serif;font-size:13px;font-weight:700;cursor:pointer;
+  }
+  .giphy-tabs button.active{background:var(--gold);color:#221327;}
+  .giphy-tabs button.giphy-close{flex:0 0 auto;width:34px;color:var(--muted);}
+  .giphy-search-row{margin-bottom:10px;}
+  .giphy-search-row input{
+    width:100%;box-sizing:border-box;background:var(--bg-card-2);border:1px solid #4a2f52;
+    border-radius:14px;padding:10px 14px;color:var(--cream);font-family:'Tajawal',sans-serif;
+    font-size:14px;outline:none;
+  }
+  .giphy-grid{
+    display:grid;grid-template-columns:repeat(3,1fr);gap:8px;
+    overflow-y:auto;padding-bottom:4px;min-height:120px;
+  }
+  .giphy-grid img{
+    width:100%;aspect-ratio:1/1;object-fit:cover;border-radius:10px;
+    cursor:pointer;background:var(--bg-card-2);transition:.15s;
+  }
+  .giphy-grid img:active{transform:scale(.94);}
+  .giphy-empty{grid-column:1/-1;text-align:center;color:var(--muted);font-size:13px;padding:26px 0;}
 </style>
 </head>
 <body>
@@ -599,10 +645,14 @@
     <div class="txt" id="replyPreviewText"></div>
     <button id="cancelReply">✕</button>
   </div>
+  <div class="more-menu" id="moreMenu">
+    <button id="stickerBtn" title="ستيكر">🎨<span>ستيكر</span></button>
+    <button class="mic-btn" id="micBtn" title="رسالة صوتية">🎤<span>صوت</span></button>
+    <button id="schedBtn" title="جدولة رسالة">⏰<span>جدولة</span></button>
+  </div>
   <div class="composer">
-    <button class="icon-btn" id="stickerBtn" title="ستيكر">🎨</button>
-    <button class="icon-btn mic-btn" id="micBtn" title="رسالة صوتية">🎤</button>
-    <button class="icon-btn" id="schedBtn" title="جدولة رسالة">⏰</button>
+    <button class="icon-btn" id="moreBtn" title="المزيد">+</button>
+    <button class="icon-btn" id="giphyBtn" title="ستيكرز و GIFs">🔍</button>
     <input type="text" id="textInput" placeholder="اكتب شي حلو..." maxlength="500">
     <span class="char-counter" id="charCounter"></span>
     <button class="icon-btn send-btn" id="sendBtn">↩</button>
@@ -640,6 +690,20 @@
       <button class="btn cancel" id="cancelModal">إلغاء</button>
       <button class="btn confirm" id="confirmModal">إرسال 🤍</button>
     </div>
+  </div>
+</div>
+
+<div class="modal-bg" id="giphyModalBg">
+  <div class="modal giphy-modal">
+    <div class="giphy-tabs">
+      <button id="giphyTabStickers" class="active">ستيكرز</button>
+      <button id="giphyTabGifs">GIFs</button>
+      <button id="giphyClose" class="giphy-close">✕</button>
+    </div>
+    <div class="giphy-search-row">
+      <input type="text" id="giphySearchInput" placeholder="دور عن ستيكر أو GIF...">
+    </div>
+    <div class="giphy-grid" id="giphyGrid"></div>
   </div>
 </div>
 
@@ -1194,6 +1258,86 @@ function clearReply(){
   document.getElementById('replyPreview').style.display = 'none';
 }
 document.getElementById('cancelReply').onclick = clearReply;
+
+/* ===== قائمة المزيد (ستيكر مرسوم / صوت / جدولة) ===== */
+const moreMenu = document.getElementById('moreMenu');
+document.getElementById('moreBtn').onclick = (e)=>{
+  e.stopPropagation();
+  moreMenu.classList.toggle('open');
+};
+moreMenu.querySelectorAll('button').forEach(b=>{
+  b.addEventListener('click', ()=> moreMenu.classList.remove('open'));
+});
+document.addEventListener('click', (e)=>{
+  if(moreMenu.classList.contains('open') && !moreMenu.contains(e.target) && e.target.id !== 'moreBtn'){
+    moreMenu.classList.remove('open');
+  }
+});
+
+/* ===== ستيكرز و GIFs (GIPHY) ===== */
+const giphyModalBg = document.getElementById('giphyModalBg');
+const giphyGrid = document.getElementById('giphyGrid');
+const giphySearchInput = document.getElementById('giphySearchInput');
+let giphyType = 'stickers';
+let giphySearchDebounce = null;
+let giphyReqId = 0;
+
+document.getElementById('giphyBtn').onclick = ()=>{
+  moreMenu.classList.remove('open');
+  giphyModalBg.classList.add('open');
+  loadGiphy();
+};
+document.getElementById('giphyClose').onclick = ()=> giphyModalBg.classList.remove('open');
+giphyModalBg.addEventListener('click', e=>{
+  if(e.target === giphyModalBg) giphyModalBg.classList.remove('open');
+});
+document.getElementById('giphyTabStickers').onclick = ()=> switchGiphyTab('stickers');
+document.getElementById('giphyTabGifs').onclick = ()=> switchGiphyTab('gifs');
+function switchGiphyTab(type){
+  giphyType = type;
+  document.getElementById('giphyTabStickers').classList.toggle('active', type === 'stickers');
+  document.getElementById('giphyTabGifs').classList.toggle('active', type === 'gifs');
+  loadGiphy();
+}
+giphySearchInput.addEventListener('input', ()=>{
+  clearTimeout(giphySearchDebounce);
+  giphySearchDebounce = setTimeout(loadGiphy, 350);
+});
+
+async function loadGiphy(){
+  const myReq = ++giphyReqId;
+  giphyGrid.innerHTML = '<div class="giphy-empty">جاري التحميل...</div>';
+  const q = giphySearchInput.value.trim();
+  try{
+    const res = await fetch(`${FN}/giphy?type=${giphyType}&q=${encodeURIComponent(q)}`);
+    const data = await res.json();
+    if(myReq !== giphyReqId) return; // استجابة متأخرة لطلب قديم
+    if(!res.ok || !data.items || !data.items.length){
+      giphyGrid.innerHTML = `<div class="giphy-empty">${data.error === 'GIPHY not configured' ? 'ميزة الستيكرز والـ GIFs لسا ما انفعّلت 🤍' : 'ما لقينا شي 🤍'}</div>`;
+      return;
+    }
+    giphyGrid.innerHTML = '';
+    data.items.forEach(item=>{
+      const img = document.createElement('img');
+      img.src = item.preview;
+      img.loading = 'lazy';
+      img.alt = 'ستيكر';
+      img.onclick = ()=> sendGiphy(item);
+      giphyGrid.appendChild(img);
+    });
+  }catch(e){
+    if(myReq !== giphyReqId) return;
+    giphyGrid.innerHTML = '<div class="giphy-empty">صار خطأ، جرب مرة ثانية</div>';
+  }
+}
+
+function sendGiphy(item){
+  const payload = { type:'media', media:item.full, mediaType:'image' };
+  if(replyingTo){ payload.replyTo = replyingTo; }
+  sendMessage(payload);
+  clearReply();
+  giphyModalBg.classList.remove('open');
+}
 
 /* ===== Sticker modal ===== */
 const modalBg = document.getElementById('modalBg');
