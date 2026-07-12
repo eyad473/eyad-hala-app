@@ -11,5 +11,19 @@
       "binding": "EYAD_HALA_KV",
       "id": "1793c8a02e484d04978e34cedb0ff1fe"
     }
+  ],
+  "durable_objects": {
+    "bindings": [
+      {
+        "name": "CHAT",
+        "class_name": "ChatRoom"
+      }
+    ]
+  },
+  "migrations": [
+    {
+      "tag": "v1",
+      "new_sqlite_classes": ["ChatRoom"]
+    }
   ]
 }
