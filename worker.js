@@ -299,15 +299,12 @@ async function getSeen(env) {
   return json({ eyad, hala });
 }
 
-/* ===== الإشعارات (Web Push بدون حمولة) ===== */
-const VAPID_PUBLIC = 'BFjNF8HRXnpw4m5RBru6srtVahFtd80QSqG9ydMxguyHWmVutzPeVnE37hQorhyH6E8MCyYs9lqMC1Tmt9olUaU';
-const VAPID_JWK = {
-  kty: 'EC',
-  crv: 'P-256',
-  x: 'WM0XwdFeenDiblEGu7qyu1VqEW13zRBKob3J0zGC7Ic',
-  y: 'WmVutzPeVnE37hQorhyH6E8MCyYs9lqMC1Tmt9olUaU',
-  d: '8-T9rBH1VuDkk7kmZnbz0AVFv0UGre1rPSbF-Hg3vaE',
-};
+/* ===== الإشعارات (Web Push بدون حمولة) =====
+   المفتاح العام مو سري وبيتوافق مع الموجود بـ index.html.
+   المفتاح الخاص لازم يكون Cloudflare secret باسم VAPID_PRIVATE_JWK
+   (قيمته JSON بصيغة JWK: {"kty":"EC","crv":"P-256","x":"...","y":"...","d":"..."})
+   يتحط عبر: wrangler secret put VAPID_PRIVATE_JWK */
+const VAPID_PUBLIC = 'BHrW8JfecR9Q8o7YulIKdrSq-vgNsdUlmchV4HgZiP8hzGdwnnDJVOK6_M8CcG-PLuTcSF96G-pXyFMIJeYGepI';
 
 function b64urlStr(s) {
   return btoa(s).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
@@ -318,14 +315,15 @@ function b64urlBytes(bytes) {
   return btoa(bin).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
 }
 
-async function vapidJwt(endpoint) {
+async function vapidJwt(endpoint, env) {
   const aud = new URL(endpoint).origin;
   const header = b64urlStr(JSON.stringify({ typ: 'JWT', alg: 'ES256' }));
   const payload = b64urlStr(
     JSON.stringify({ aud, exp: Math.floor(Date.now() / 1000) + 12 * 3600, sub: 'mailto:app@example.com' })
   );
   const unsigned = header + '.' + payload;
-  const key = await crypto.subtle.importKey('jwk', VAPID_JWK, { name: 'ECDSA', namedCurve: 'P-256' }, false, ['sign']);
+  const jwk = JSON.parse(env.VAPID_PRIVATE_JWK);
+  const key = await crypto.subtle.importKey('jwk', jwk, { name: 'ECDSA', namedCurve: 'P-256' }, false, ['sign']);
   const sig = await crypto.subtle.sign({ name: 'ECDSA', hash: 'SHA-256' }, key, new TextEncoder().encode(unsigned));
   return unsigned + '.' + b64urlBytes(new Uint8Array(sig));
 }
@@ -343,7 +341,8 @@ async function notifyOther(from, env) {
     const raw = await env.EYAD_HALA_KV.get(`sub_${other}`);
     if (!raw) return;
     const sub = JSON.parse(raw);
-    const jwt = await vapidJwt(sub.endpoint);
+    if (!env.VAPID_PRIVATE_JWK) return;
+    const jwt = await vapidJwt(sub.endpoint, env);
     await fetch(sub.endpoint, {
       method: 'POST',
       headers: {
