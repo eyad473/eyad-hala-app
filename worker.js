@@ -1,14 +1,74 @@
+/* ===============================================
+   سَما — الباك إند على Cloudflare Workers
+   Durable Object + WebSocket للتوصيل اللحظي
+   =============================================== */
+
+export class ChatRoom {
+  constructor(ctx, env) {
+    this.ctx = ctx;
+    this.env = env;
+  }
+
+  async fetch(request) {
+    const url = new URL(request.url);
+
+    // بث رسالة لكل المتصلين (بيجي من الـ Worker الرئيسي)
+    if (url.pathname === '/broadcast' && request.method === 'POST') {
+      const data = await request.text();
+      this.ctx.getWebSockets().forEach((ws) => {
+        try { ws.send(data); } catch (e) {}
+      });
+      return new Response('ok');
+    }
+
+    // فتح اتصال WebSocket
+    if (request.headers.get('Upgrade') !== 'websocket') {
+      return new Response('expected websocket', { status: 426 });
+    }
+    const pair = new WebSocketPair();
+    const [client, server] = Object.values(pair);
+    this.ctx.acceptWebSocket(server);
+    try {
+      server.serializeAttachment({ who: url.searchParams.get('who') || '' });
+    } catch (e) {}
+    return new Response(null, { status: 101, webSocket: client });
+  }
+
+  // رسائل جاية من العملاء عبر WebSocket (كتابة/شوفها — أحداث خفيفة)
+  webSocketMessage(ws, message) {
+    try {
+      const d = JSON.parse(message);
+      if (d.t === 'typing' || d.t === 'seen') {
+        const out = JSON.stringify(d);
+        this.ctx.getWebSockets().forEach((s) => {
+          if (s !== ws) { try { s.send(out); } catch (e) {} }
+        });
+      }
+    } catch (e) {}
+  }
+
+  webSocketClose(ws) { try { ws.close(); } catch (e) {} }
+  webSocketError(ws) { try { ws.close(); } catch (e) {} }
+}
+
 export default {
   async fetch(request, env) {
     const url = new URL(request.url);
     const path = url.pathname;
 
     try {
+      if (path === '/api/ws') {
+        const stub = env.CHAT.get(env.CHAT.idFromName('main'));
+        return stub.fetch(request);
+      }
       if (path === '/api/messages' && request.method === 'GET') {
         return await getMessages(env);
       }
       if (path === '/api/send' && request.method === 'POST') {
         return await sendMessage(request, env);
+      }
+      if (path.startsWith('/api/media/') && request.method === 'GET') {
+        return await getMedia(path.slice('/api/media/'.length), env);
       }
       if (path === '/api/schedule' && request.method === 'POST') {
         return await scheduleMessage(request, env);
@@ -29,10 +89,10 @@ export default {
         return await editDeleteMessage(request, env);
       }
       if (path === '/api/typing' && request.method === 'POST') {
-        return await postTyping(request, env);
+        return json({ ok: true }); // صار عبر WebSocket
       }
       if (path === '/api/typing' && request.method === 'GET') {
-        return await getTyping(env);
+        return new Response('null', { status: 200, headers: { 'Content-Type': 'application/json' } });
       }
       if (path === '/api/seen' && request.method === 'POST') {
         return await postSeen(request, env);
@@ -40,26 +100,11 @@ export default {
       if (path === '/api/seen' && request.method === 'GET') {
         return await getSeen(env);
       }
-      if (path === '/api/schedule' && request.method === 'POST') {
-        return await scheduleMessage(request, env);
-      }
-      if (path === '/api/startdate' && request.method === 'POST') {
-        return await postStartDate(request, env);
-      }
-      if (path === '/api/startdate' && request.method === 'GET') {
-        return await getStartDate(env);
-      }
     } catch (e) {
       return json({ error: e.message }, 500);
     }
 
-    // أي طلب تاني: خدمة الملفات الثابتة (index.html, sw.js...)
     return env.ASSETS.fetch(request);
-  },
-
-  // يشتغل تلقائياً كل دقيقة، يفحص الرسائل المجدولة ويرسل يلي وقتها استحق
-  async scheduled(event, env, ctx) {
-    ctx.waitUntil(processScheduledMessages(env));
   },
 };
 
@@ -68,6 +113,13 @@ function json(data, status = 200) {
     status,
     headers: { 'Content-Type': 'application/json' },
   });
+}
+
+async function broadcast(env, obj) {
+  try {
+    const stub = env.CHAT.get(env.CHAT.idFromName('main'));
+    await stub.fetch('https://do/broadcast', { method: 'POST', body: JSON.stringify(obj) });
+  } catch (e) {}
 }
 
 async function getMessagesList(env) {
@@ -86,16 +138,18 @@ async function getMessages(env) {
     const due = sched.filter((s) => s.deliverAt <= now);
     const remaining = sched.filter((s) => s.deliverAt > now);
     if (due.length) {
-      due.forEach((s) => {
-        list.push({
+      for (const s of due) {
+        const entry = {
           id: `local-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
           from: s.from,
           text: s.text,
           type: 'text',
           scheduled: true,
           timestamp: Date.now(),
-        });
-      });
+        };
+        list.push(entry);
+        await broadcast(env, { t: 'msg', m: entry });
+      }
       if (list.length > 500) list.splice(0, list.length - 500);
       await env.EYAD_HALA_KV.put('messages_log', JSON.stringify(list));
       await env.EYAD_HALA_KV.put('scheduled', JSON.stringify(remaining));
@@ -103,6 +157,106 @@ async function getMessages(env) {
   }
 
   return json(list);
+}
+
+/* فصل الوسائط الثقيلة (base64) عن السجل — بتتخزن لحالها وبيتخزن رابطها بس */
+async function offloadMedia(entry, env) {
+  const fields = ['image', 'audio', 'media'];
+  for (const f of fields) {
+    const v = entry[f];
+    if (v && typeof v === 'string' && v.startsWith('data:')) {
+      const mid = `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+      await env.EYAD_HALA_KV.put(`media:${mid}`, v);
+      entry[f] = `/api/media/${mid}`;
+    }
+  }
+}
+
+async function getMedia(mid, env) {
+  const dataUrl = await env.EYAD_HALA_KV.get(`media:${mid}`);
+  if (!dataUrl) return new Response('not found', { status: 404 });
+  const comma = dataUrl.indexOf(',');
+  const header = dataUrl.slice(5, comma); // بعد "data:"
+  const mime = header.split(';')[0] || 'application/octet-stream';
+  const b64 = dataUrl.slice(comma + 1);
+  const bin = atob(b64);
+  const bytes = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+  return new Response(bytes, {
+    status: 200,
+    headers: {
+      'Content-Type': mime,
+      'Cache-Control': 'public, max-age=31536000, immutable',
+    },
+  });
+}
+
+async function sendMessage(request, env) {
+  const { from, text, image, audio, media, mediaType, replyTo, type, sos } = await request.json();
+  if (from !== 'eyad' && from !== 'hala') {
+    return json({ error: 'مرسل غير معروف' }, 400);
+  }
+  const entry = {
+    id: `local-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+    from,
+    text: text || '',
+    image: type === 'sticker' ? image : null,
+    audio: type === 'voice' ? audio : null,
+    media: type === 'media' ? media : null,
+    mediaType: type === 'media' ? mediaType : null,
+    replyTo: replyTo || null,
+    sos: sos || false,
+    type: type || 'text',
+    timestamp: Date.now(),
+  };
+
+  await offloadMedia(entry, env);
+
+  // البث اللحظي أولاً (قبل الكتابة بالتخزين) — هاد سر السرعة
+  await broadcast(env, { t: 'msg', m: entry });
+
+  const list = await getMessagesList(env);
+  list.push(entry);
+  if (list.length > 500) list.splice(0, list.length - 500);
+  await env.EYAD_HALA_KV.put('messages_log', JSON.stringify(list));
+
+  await notifyOther(from, env);
+  return json({ ok: true, message: entry });
+}
+
+async function reactMessage(request, env) {
+  const { messageId, emoji, from } = await request.json();
+  const list = await getMessagesList(env);
+  const idx = list.findIndex((m) => m.id === messageId);
+  if (idx === -1) return json({ error: 'الرسالة مش موجودة' }, 404);
+  list[idx].reaction = emoji;
+  list[idx].reactionBy = from;
+  await env.EYAD_HALA_KV.put('messages_log', JSON.stringify(list));
+  await broadcast(env, { t: 'react', messageId, emoji, from });
+  return json({ ok: true });
+}
+
+async function editDeleteMessage(request, env) {
+  const { action, messageId, from, newText } = await request.json();
+  const list = await getMessagesList(env);
+  const idx = list.findIndex((m) => m.id === messageId);
+  if (idx === -1) return json({ error: 'الرسالة مش موجودة' }, 404);
+  if (list[idx].from !== from) return json({ error: 'ما بتقدر تعدل/تحذف رسالة مش إلك' }, 403);
+  if (action === 'delete') {
+    list[idx].deleted = true;
+    list[idx].text = '';
+    list[idx].image = null;
+    list[idx].audio = null;
+    list[idx].media = null;
+  } else if (action === 'edit') {
+    list[idx].text = newText || '';
+    list[idx].edited = true;
+  } else {
+    return json({ error: 'إجراء غير معروف' }, 400);
+  }
+  await env.EYAD_HALA_KV.put('messages_log', JSON.stringify(list));
+  await broadcast(env, { t: 'update', m: list[idx] });
+  return json({ ok: true });
 }
 
 async function scheduleMessage(request, env) {
@@ -128,76 +282,6 @@ async function setMeta(request, env) {
   Object.assign(meta, body);
   await env.EYAD_HALA_KV.put('meta', JSON.stringify(meta));
   return json({ ok: true });
-}
-
-async function sendMessage(request, env) {
-  const { from, text, image, audio, media, mediaType, replyTo, type, sos } = await request.json();
-  if (from !== 'eyad' && from !== 'hala') {
-    return json({ error: 'مرسل غير معروف' }, 400);
-  }
-  const list = await getMessagesList(env);
-  const entry = {
-    id: `local-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
-    from,
-    text: text || '',
-    image: type === 'sticker' ? image : null,
-    audio: type === 'voice' ? audio : null,
-    media: type === 'media' ? media : null,
-    mediaType: type === 'media' ? mediaType : null,
-    replyTo: replyTo || null,
-    sos: sos || false,
-    type: type || 'text',
-    timestamp: Date.now(),
-  };
-  list.push(entry);
-  if (list.length > 500) list.splice(0, list.length - 500);
-  await env.EYAD_HALA_KV.put('messages_log', JSON.stringify(list));
-  await notifyOther(from, env);
-  return json({ ok: true, message: entry });
-}
-
-async function reactMessage(request, env) {
-  const { messageId, emoji, from } = await request.json();
-  const list = await getMessagesList(env);
-  const idx = list.findIndex((m) => m.id === messageId);
-  if (idx === -1) return json({ error: 'الرسالة مش موجودة' }, 404);
-  list[idx].reaction = emoji;
-  list[idx].reactionBy = from;
-  await env.EYAD_HALA_KV.put('messages_log', JSON.stringify(list));
-  return json({ ok: true });
-}
-
-async function editDeleteMessage(request, env) {
-  const { action, messageId, from, newText } = await request.json();
-  const list = await getMessagesList(env);
-  const idx = list.findIndex((m) => m.id === messageId);
-  if (idx === -1) return json({ error: 'الرسالة مش موجودة' }, 404);
-  if (list[idx].from !== from) return json({ error: 'ما بتقدر تعدل/تحذف رسالة مش إلك' }, 403);
-  if (action === 'delete') {
-    list[idx].deleted = true;
-    list[idx].text = '';
-    list[idx].image = null;
-    list[idx].audio = null;
-    list[idx].media = null;
-  } else if (action === 'edit') {
-    list[idx].text = newText || '';
-    list[idx].edited = true;
-  } else {
-    return json({ error: 'إجراء غير معروف' }, 400);
-  }
-  await env.EYAD_HALA_KV.put('messages_log', JSON.stringify(list));
-  return json({ ok: true });
-}
-
-async function postTyping(request, env) {
-  const { from } = await request.json();
-  await env.EYAD_HALA_KV.put('typing_status', JSON.stringify({ from, ts: Date.now() }), { expirationTtl: 30 });
-  return json({ ok: true });
-}
-
-async function getTyping(env) {
-  const raw = await env.EYAD_HALA_KV.get('typing_status');
-  return new Response(raw || 'null', { status: 200, headers: { 'Content-Type': 'application/json' } });
 }
 
 async function postSeen(request, env) {
@@ -267,8 +351,6 @@ async function notifyOther(from, env) {
         Authorization: `vapid t=${jwt}, k=${VAPID_PUBLIC}`,
       },
     });
-  } catch (e) {
-    // نتجاهل فشل الإشعار حتى ما يوقف الرسالة نفسها
+  } catch (e) {}
   }
-}
-  
+    
