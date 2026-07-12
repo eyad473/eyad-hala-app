@@ -3,6 +3,10 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<link rel="manifest" href="/manifest.webmanifest">
+<link rel="icon" type="image/png" href="/icon-192.png">
+<link rel="apple-touch-icon" href="/icon-192.png">
+<meta name="theme-color" content="#1E1224">
 <title>إياد ✶ حلا</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Aref+Ruqaa:wght@400;700&family=Tajawal:wght@300;400;500;700&display=swap" rel="stylesheet">
@@ -274,7 +278,7 @@
   .search-bar input{
     flex:1;background:var(--bg-card);border:1px solid #4a2f52;
     border-radius:14px;padding:7px 12px;color:var(--cream);
-      font-family:'Tajawal',sans-serif;font-size:14px;outline:none;
+    font-family:'Tajawal',sans-serif;font-size:14px;outline:none;
   }
   .search-bar button{
     background:var(--bg-card);border:1px solid #4a2f52;color:var(--cream);
@@ -303,6 +307,60 @@
   .bubble:hover .copy-btn{display:flex;}
   .char-counter{
     font-size:10px;color:var(--muted);padding:0 8px;white-space:nowrap;
+  }
+
+  /* ===== نجوم الليل ===== */
+  .stars{
+    position:fixed;inset:0;pointer-events:none;z-index:0;
+    opacity:0;transition:opacity 2s;
+  }
+    .stars.on{opacity:1;}
+  .star{
+    position:absolute;background:#fff;border-radius:50%;
+    animation:twinkle 3s infinite ease-in-out;
+  }
+  @keyframes twinkle{0%,100%{opacity:.2;}50%{opacity:.9;}}
+  header, main, footer, .search-bar{position:relative;z-index:1;}
+
+  /* ===== شريط المسافة ===== */
+  .distance-row{
+    display:flex;align-items:center;justify-content:center;gap:6px;
+    font-size:11px;color:var(--muted);margin-top:4px;
+  }
+  .distance-row .pulse-dot{
+    width:5px;height:5px;border-radius:50%;background:var(--rose);
+  }
+  .distance-row.flash .pulse-dot{animation:distFlash 1s ease;}
+  @keyframes distFlash{0%{box-shadow:0 0 0 0 rgba(227,175,174,.8);}100%{box-shadow:0 0 0 12px rgba(227,175,174,0);}}
+
+  /* ===== الاحتفال (قلوب متطايرة) ===== */
+  .float-heart{
+    position:fixed;bottom:-40px;font-size:24px;z-index:99;
+    pointer-events:none;
+    animation:floatUp 3.4s ease-in forwards;
+  }
+  @keyframes floatUp{
+    0%{transform:translateY(0) rotate(0);opacity:1;}
+    100%{transform:translateY(-110vh) rotate(30deg);opacity:0;}
+  }
+
+  /* ===== زر SOS ===== */
+  .sos-btn{
+    position:absolute;left:96px;top:22px;
+    width:32px;height:32px;border-radius:50%;
+    border:1px solid #c0555a;background:rgba(192,85,90,.15);
+    color:#ff8a8f;font-size:14px;cursor:pointer;
+    display:flex;align-items:center;justify-content:center;
+  }
+  .bubble.sos-bubble{
+    background:linear-gradient(135deg,#c0555a,#8a2f35) !important;
+    animation:sosPulse 1.2s ease 3;
+  }
+  @keyframes sosPulse{0%,100%{box-shadow:0 0 0 0 rgba(192,85,90,.6);}50%{box-shadow:0 0 0 14px rgba(192,85,90,0);}}
+
+  /* ===== عداد الأيام ===== */
+  .days-counter{
+    font-size:11px;color:var(--gold);margin-top:3px;letter-spacing:.5px;
   }
 
   /* ===== Typing indicator ===== */
@@ -447,9 +505,11 @@
 </head>
 <body>
 
+<div class="stars" id="starsLayer"></div>
 <header>
   <button class="theme-btn" id="themeBtn">🎨</button>
   <button class="search-btn" id="searchBtn">🔍</button>
+  <button class="sos-btn" id="sosBtn" title="محتاجتك هلأ">🚨</button>
   <div class="theme-panel" id="themePanel">
     <span class="theme-swatch" data-theme="purple" style="background:linear-gradient(135deg,#E3AFAE,#CDA35B)"></span>
     <span class="theme-swatch" data-theme="night" style="background:linear-gradient(135deg,#6C8EBF,#2B3A55)"></span>
@@ -462,6 +522,10 @@
     <span class="name hala">حلا</span>
   </div>
   <div class="sub">خيط بيوصل بين غزة ونابلس</div>
+  <div class="distance-row" id="distanceRow">
+    <span>غزة</span><span class="pulse-dot"></span><span id="distanceText">~93 كم</span><span class="pulse-dot"></span><span>نابلس</span>
+  </div>
+  <div class="days-counter" id="daysCounter" style="cursor:pointer;" title="اضغط لتحديد تاريخ بدايتكم">💞</div>
   <div class="whoami">
     <button id="btnEyad" class="eyad">أنا إياد</button>
     <button id="btnHala" class="hala">أنا حلا</button>
@@ -500,6 +564,7 @@
   <div class="composer">
     <button class="icon-btn" id="stickerBtn" title="ستيكر">🎨</button>
     <button class="icon-btn mic-btn" id="micBtn" title="رسالة صوتية">🎤</button>
+    <button class="icon-btn" id="schedBtn" title="جدولة رسالة">⏰</button>
     <input type="text" id="textInput" placeholder="اكتب شي حلو..." maxlength="500">
     <span class="char-counter" id="charCounter"></span>
     <button class="icon-btn send-btn" id="sendBtn">↩</button>
@@ -550,7 +615,7 @@ const chatEl = document.getElementById('chat');
 const emptyState = document.getElementById('emptyState');
 const btnEyad = document.getElementById('btnEyad');
 const btnHala = document.getElementById('btnHala');
-  const statusDot = document.getElementById('statusDot');
+const statusDot = document.getElementById('statusDot');
 
 function setWho(who){
   ME = who;
@@ -565,7 +630,7 @@ function setWho(who){
 }
 btnEyad.onclick = ()=>setWho('eyad');
 btnHala.onclick = ()=>setWho('hala');
-
+  
 function fmtTime(ts){
   const d = new Date(ts);
   return d.toLocaleTimeString('ar', {hour:'2-digit', minute:'2-digit'});
@@ -672,7 +737,7 @@ function render(list){
     row.className = 'bubble-row ' + (m.from === ME ? 'me' : 'them');
     row.id = 'msg-' + m.id;
     const bubble = document.createElement('div');
-    bubble.className = 'bubble';
+    bubble.className = 'bubble' + (m.sos ? ' sos-bubble' : '');
     const tag = document.createElement('div');
     tag.className = 'sender-tag';
     tag.textContent = m.from === 'eyad' ? 'إياد' : 'حلا';
@@ -826,7 +891,7 @@ function updateSeenTag(){
   if(!row || !localMessages.length) return;
   let lastMineIdx = -1;
   localMessages.forEach((m,i)=>{ if(m.from === ME) lastMineIdx = i; });
-    if(lastMineIdx === -1) return;
+  if(lastMineIdx === -1) return;
   const lastMineMsg = localMessages[lastMineIdx];
   const otherKey = ME === 'eyad' ? 'hala' : 'eyad';
   const otherSeenTs = seenData[otherKey] || 0;
@@ -880,7 +945,6 @@ async function loadMessages(){
 }
 
 let localMessages = [];
-
 async function sendMessage(payload){
   // نعرض الرسالة فوراً بدون ما نستنى السيرفر (عرض تفاؤلي)
   const optimistic = {
@@ -892,6 +956,7 @@ async function sendMessage(payload){
     media: payload.type === 'media' ? payload.media : null,
     mediaType: payload.type === 'media' ? payload.mediaType : null,
     replyTo: payload.replyTo || null,
+    sos: payload.sos || false,
     type: payload.type || 'text',
     timestamp: Date.now()
   };
@@ -1101,8 +1166,8 @@ async function enableNotificationsOLD_UNUSED(){
     if(perm !== 'granted'){
       alert('لازم توافق على الإذن حتى توصلك الإشعارات');
       return;
-      }
-      const sub = await reg.pushManager.subscribe({
+    }
+    const sub = await reg.pushManager.subscribe({
       userVisibleOnly: true,
       applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC_KEY)
     });
@@ -1196,7 +1261,7 @@ async function checkTyping(){
 setInterval(checkTyping, 3000);
 
 /* ===== الرسائل الصوتية ===== */
-let mediaRecorder, audioChunks = [], isRecording = false, recStartTime, recTimerInt;
+    let mediaRecorder, audioChunks = [], isRecording = false, recStartTime, recTimerInt;
 const micBtn = document.getElementById('micBtn');
 const waveRow = document.getElementById('waveRow');
 const recTimerEl = document.getElementById('recTimer');
@@ -1371,6 +1436,142 @@ chatEl.addEventListener('scroll', ()=>{
 scrollBtn.onclick = ()=>{
   chatEl.scrollTo({ top: chatEl.scrollHeight, behavior:'smooth' });
 };
+
+/* ===== نجوم الليل (حسب توقيت فلسطين) ===== */
+function setupStars(){
+  const layer = document.getElementById('starsLayer');
+  for(let i=0;i<40;i++){
+    const s = document.createElement('span');
+    s.className = 'star';
+    const size = 1 + Math.random()*2;
+    s.style.width = size+'px'; s.style.height = size+'px';
+    s.style.left = Math.random()*100+'%';
+    s.style.top = Math.random()*60+'%';
+    s.style.animationDelay = (Math.random()*3)+'s';
+    layer.appendChild(s);
+  }
+  function updateNight(){
+    const hour = parseInt(new Intl.DateTimeFormat('en-GB',{hour:'numeric',hour12:false,timeZone:'Asia/Gaza'}).format(new Date()));
+    layer.classList.toggle('on', hour >= 19 || hour < 5);
+  }
+  updateNight();
+  setInterval(updateNight, 5*60*1000);
+}
+setupStars();
+
+/* ===== وميض المسافة عند رسالة جديدة ===== */
+let prevMsgCount = -1;
+const origRender = render;
+render = function(list){
+  origRender(list);
+  if(prevMsgCount >= 0 && list.length > prevMsgCount){
+    const dr = document.getElementById('distanceRow');
+    dr.classList.remove('flash');
+    void dr.offsetWidth;
+    dr.classList.add('flash');
+    const newest = list[list.length-1];
+    if(newest && newest.from !== ME){
+      maybeCelebrate(newest);
+      if(newest.sos && navigator.vibrate) navigator.vibrate([200,80,200,80,400]);
+    }
+  }
+  prevMsgCount = list.length;
+};
+
+/* ===== الاحتفال: قلوب متطايرة ===== */
+function heartsBurst(){
+  const emojis = ['❤️','💕','💗','🤍','💛'];
+  for(let i=0;i<18;i++){
+    setTimeout(()=>{
+      const h = document.createElement('span');
+      h.className = 'float-heart';
+      h.textContent = emojis[Math.floor(Math.random()*emojis.length)];
+      h.style.left = (5+Math.random()*90)+'%';
+      h.style.fontSize = (18+Math.random()*20)+'px';
+      h.style.animationDuration = (2.6+Math.random()*1.6)+'s';
+      document.body.appendChild(h);
+      setTimeout(()=>h.remove(), 4200);
+    }, i*120);
+  }
+}
+function maybeCelebrate(msg){
+  if(msg.type==='text' && msg.text && (msg.text.includes('🎉') || msg.text.includes('بحبك'))){
+    heartsBurst();
+  }
+}
+
+/* ===== زر SOS ===== */
+document.getElementById('sosBtn').onclick = ()=>{
+  if(!confirm('تبعت نداء "محتاجتك هلأ 🚨"؟')) return;
+  const payload = {text:'محتاجتك هلأ 🚨', type:'text', sos:true};
+  sendMessage(payload);
+  if(navigator.vibrate) navigator.vibrate(120);
+};
+
+/* ===== عداد أيام العلاقة ===== */
+const daysEl = document.getElementById('daysCounter');
+let metaData = {};
+
+async function loadMeta(){
+  try{
+    const res = await fetch(`${FN}/meta`);
+    metaData = await res.json();
+    renderDays();
+  }catch(e){}
+}
+function renderDays(){
+  if(metaData.startDate){
+    const days = Math.floor((Date.now() - new Date(metaData.startDate).getTime()) / 86400000);
+    daysEl.textContent = `💞 سوا من ${days} يوم`;
+  } else {
+    daysEl.textContent = '💞 حدد تاريخ بدايتكم';
+  }
+}
+daysEl.onclick = async ()=>{
+  const val = prompt('تاريخ بدايتكم (سنة-شهر-يوم) مثلاً: 2024-03-15', metaData.startDate || '');
+  if(!val) return;
+  if(!/^\d{4}-\d{2}-\d{2}$/.test(val)){ alert('الصيغة لازم تكون سنة-شهر-يوم زي 2024-03-15'); return; }
+  try{
+    await fetch(`${FN}/meta`, {
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({startDate: val})
+    });
+    metaData.startDate = val;
+    renderDays();
+    heartsBurst();
+  }catch(e){ alert('صار خطأ، جرب كمان مرة'); }
+};
+loadMeta();
+
+/* ===== جدولة رسالة ===== */
+document.getElementById('schedBtn').onclick = async ()=>{
+  const text = prompt('اكتب الرسالة يلي بدك تنجدول:');
+  if(!text || !text.trim()) return;
+  const when = prompt('بعد قديش تنبعت؟ اكتب عدد الساعات (مثلاً 8) أو وقت محدد بصيغة سنة-شهر-يوم ساعة:دقيقة (مثلاً 2026-07-13 08:00)');
+  if(!when) return;
+  let deliverAt;
+  if(/^\d+(\.\d+)?$/.test(when.trim())){
+    deliverAt = Date.now() + parseFloat(when.trim())*3600*1000;
+  } else {
+    const parsed = new Date(when.trim().replace(' ', 'T'));
+    if(isNaN(parsed.getTime())){ alert('ما فهمت الوقت، جرب كمان مرة'); return; }
+    deliverAt = parsed.getTime();
+  }
+  if(deliverAt <= Date.now()){ alert('الوقت لازم يكون بالمستقبل'); return; }
+  try{
+    const res = await fetch(`${FN}/schedule`, {
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({from: ME, text: text.trim(), deliverAt})
+    });
+    if(!res.ok) throw new Error('failed');
+    const d = new Date(deliverAt);
+    alert('انجدولت ⏰ رح تنبعت ' + d.toLocaleString('ar-EG'));
+  }catch(e){ alert('صار خطأ بالجدولة، جرب كمان مرة'); }
+};
 </script>
 </body>
 </html>
+
+  
