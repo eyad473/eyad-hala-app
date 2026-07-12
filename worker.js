@@ -13,6 +13,9 @@ export default {
       if (path === '/api/schedule' && request.method === 'POST') {
         return await scheduleMessage(request, env);
       }
+      if (path === '/api/subscribe' && request.method === 'POST') {
+        return await subscribeNotif(request, env);
+      }
       if (path === '/api/meta' && request.method === 'GET') {
         return await getMeta(env);
       }
@@ -149,6 +152,7 @@ async function sendMessage(request, env) {
   list.push(entry);
   if (list.length > 500) list.splice(0, list.length - 500);
   await env.EYAD_HALA_KV.put('messages_log', JSON.stringify(list));
+  await notifyOther(from, env);
   return json({ ok: true, message: entry });
 }
 
@@ -209,4 +213,62 @@ async function getSeen(env) {
   const eyad = eyadRaw ? JSON.parse(eyadRaw).ts : 0;
   const hala = halaRaw ? JSON.parse(halaRaw).ts : 0;
   return json({ eyad, hala });
-               }
+}
+
+/* ===== الإشعارات (Web Push بدون حمولة) ===== */
+const VAPID_PUBLIC = 'BFjNF8HRXnpw4m5RBru6srtVahFtd80QSqG9ydMxguyHWmVutzPeVnE37hQorhyH6E8MCyYs9lqMC1Tmt9olUaU';
+const VAPID_JWK = {
+  kty: 'EC',
+  crv: 'P-256',
+  x: 'WM0XwdFeenDiblEGu7qyu1VqEW13zRBKob3J0zGC7Ic',
+  y: 'WmVutzPeVnE37hQorhyH6E8MCyYs9lqMC1Tmt9olUaU',
+  d: '8-T9rBH1VuDkk7kmZnbz0AVFv0UGre1rPSbF-Hg3vaE',
+};
+
+function b64urlStr(s) {
+  return btoa(s).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+}
+function b64urlBytes(bytes) {
+  let bin = '';
+  bytes.forEach((b) => (bin += String.fromCharCode(b)));
+  return btoa(bin).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+}
+
+async function vapidJwt(endpoint) {
+  const aud = new URL(endpoint).origin;
+  const header = b64urlStr(JSON.stringify({ typ: 'JWT', alg: 'ES256' }));
+  const payload = b64urlStr(
+    JSON.stringify({ aud, exp: Math.floor(Date.now() / 1000) + 12 * 3600, sub: 'mailto:app@example.com' })
+  );
+  const unsigned = header + '.' + payload;
+  const key = await crypto.subtle.importKey('jwk', VAPID_JWK, { name: 'ECDSA', namedCurve: 'P-256' }, false, ['sign']);
+  const sig = await crypto.subtle.sign({ name: 'ECDSA', hash: 'SHA-256' }, key, new TextEncoder().encode(unsigned));
+  return unsigned + '.' + b64urlBytes(new Uint8Array(sig));
+}
+
+async function subscribeNotif(request, env) {
+  const { who, subscription } = await request.json();
+  if (who !== 'eyad' && who !== 'hala') return json({ error: 'مرسل غير معروف' }, 400);
+  await env.EYAD_HALA_KV.put(`sub_${who}`, JSON.stringify(subscription));
+  return json({ ok: true });
+}
+
+async function notifyOther(from, env) {
+  try {
+    const other = from === 'eyad' ? 'hala' : 'eyad';
+    const raw = await env.EYAD_HALA_KV.get(`sub_${other}`);
+    if (!raw) return;
+    const sub = JSON.parse(raw);
+    const jwt = await vapidJwt(sub.endpoint);
+    await fetch(sub.endpoint, {
+      method: 'POST',
+      headers: {
+        TTL: '86400',
+        Authorization: `vapid t=${jwt}, k=${VAPID_PUBLIC}`,
+      },
+    });
+  } catch (e) {
+    // نتجاهل فشل الإشعار حتى ما يوقف الرسالة نفسها
+  }
+}
+  
