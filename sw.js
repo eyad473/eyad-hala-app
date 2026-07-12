@@ -1,17 +1,14 @@
 self.addEventListener('push', (event) => {
-  let data = { title: 'إياد ✶ حلا', body: 'رسالة جديدة' };
-  try {
-    if (event.data) data = event.data.json();
-  } catch (e) {}
-
+  // الإشعار تمويهي قصداً — ما بيكشف محتوى ولا أسماء
   event.waitUntil(
-    self.registration.showNotification(data.title || 'إياد ✶ حلا', {
-      body: data.body || 'رسالة جديدة',
-      icon: 'https://cdn-icons-png.flaticon.com/512/833/833472.png',
-      badge: 'https://cdn-icons-png.flaticon.com/512/833/833472.png',
+    self.registration.showNotification('سَما 🌙', {
+      body: 'في شي جديد بالسما، تعال شوف ✨',
+      icon: '/icon-192.png',
+      badge: '/icon-192.png',
       dir: 'rtl',
       lang: 'ar',
       vibrate: [100, 50, 100],
+      tag: 'sama-new',
     })
   );
 });
